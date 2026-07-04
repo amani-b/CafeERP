@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Menu - Cafe ERP</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" th:href="@{/}">Cafe ERP</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" th:href="@{/}">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
+                <li class="nav-item"><a class="nav-link active" aria-current="page" th:href="@{/menu}">Menu</a></li>
+                <li class="nav-item"><a class="nav-link" th:href="@{/orders}">Orders</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Inventory</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<main class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Menu</h1>
+        <a class="btn btn-primary" th:href="@{/menu/new}">New Menu Item</a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Availability</th>
+                <th class="text-end">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:if="${#lists.isEmpty(menuItems)}">
+                <td colspan="5" class="text-center text-muted py-4">No menu items yet.</td>
+            </tr>
+            <tr th:each="menuItem : ${menuItems}">
+                <td th:text="${menuItem.name}">Cappuccino</td>
+                <td th:text="${menuItem.category.name}">Beverages</td>
+                <td th:text="${#numbers.formatDecimal(menuItem.price, 1, 2)}">250.00</td>
+                <td>
+                    <span class="badge text-bg-success" th:if="${menuItem.available}">Available</span>
+                    <span class="badge text-bg-secondary" th:unless="${menuItem.available}">Unavailable</span>
+                </td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/menu/edit/{id}(id=${menuItem.id})}">Edit</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
