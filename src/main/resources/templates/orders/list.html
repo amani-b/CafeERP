@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,10 +17,15 @@
         <div class="collapse navbar-collapse" id="mainNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" th:href="@{/}">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
-                <li class="nav-item"><a class="nav-link" th:href="@{/menu}">Menu</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/menu}">Menu</a></li>
                 <li class="nav-item"><a class="nav-link active" aria-current="page" th:href="@{/orders}">Orders</a></li>
                 <li class="nav-item"><a class="nav-link" href="#">Inventory</a></li>
+                <li class="nav-item">
+                    <form th:action="@{/logout}" method="post" class="d-inline">
+                        <button type="submit" class="nav-link btn btn-link border-0 bg-transparent" style="text-decoration:none;">Logout</button>
+                    </form>
+                </li>
             </ul>
         </div>
     </div>
@@ -38,17 +43,25 @@
             <tr>
                 <th>Order ID</th>
                 <th>Date/Time</th>
+                <th>Items</th>
                 <th>Total Amount</th>
-                <th>Number of Items</th>
+                <th>#</th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(orders)}">
-                <td colspan="4" class="text-center text-muted py-4">No orders yet.</td>
+                <td colspan="5" class="text-center text-muted py-4">No orders yet.</td>
             </tr>
             <tr th:each="order : ${orders}">
                 <td th:text="${order.id}">1</td>
                 <td th:text="${#temporals.format(order.createdAt, 'yyyy-MM-dd HH:mm')}">2026-07-04 08:00</td>
+                <td>
+                    <ul class="list-unstyled mb-0 small">
+                        <li th:each="item : ${order.items}" th:text="${item.itemName + ' x' + item.quantity}">
+                            Latte x 2
+                        </li>
+                    </ul>
+                </td>
                 <td th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0.00</td>
                 <td th:text="${order.itemCount}">0</td>
             </tr>
