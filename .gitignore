@@ -19,3 +19,13 @@ Thumbs.db
 
 # Cookies / session dumps
 cookies.txt
+
+# AI / agent tooling config
+.agents/
+.continue/
+
+# Logs
+app.log
+
+# Zip archives / backups
+*.zip
