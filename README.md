@@ -5,11 +5,16 @@ CafeERP is a Spring Boot web application for managing cafe operations — catego
 ## Features
 
 - Role-based authentication (ADMIN / STAFF)
-  - ADMIN: full CRUD on categories and menu items
+  - ADMIN: full CRUD on categories, menu items, and inventory
   - STAFF: can view and create orders only
 - Manage product categories
 - Manage menu items (availability toggle, pricing)
 - Create and view orders (itemised with per-item name and quantity)
+- Inventory tracking — per-menu-item opt-in model: when `trackInventory` is enabled,
+  stock is atomically decremented on order creation and blocked when insufficient;
+  untracked items are completely unaffected by inventory logic
+- Low-stock indicators highlight tracked items whose quantity is at or below their
+  configurable threshold
 - Database schema managed via Flyway migrations
 - Actuator health endpoint (`/actuator/health`) for monitoring
 - Dev / Prod profile support
@@ -43,6 +48,7 @@ src/main/resources/db/migration/
 |---|---|
 | `V1__baseline_schema.sql` | Core tables: `category`, `menu_item`, `cafe_order`, `cafe_order_item` |
 | `V2__add_users.sql` | Adds `cafe_user` table and seeds the initial admin user |
+| `V3__add_inventory.sql` | Adds `inventory` table (per-item stock with opt-in tracking) and initialises a row for every existing menu item |
 
 **Important:** Hibernate `ddl-auto` is set to `validate`, not `update`. Never enable DDL generation in production — all schema changes must go through new Flyway migrations.
 
@@ -88,7 +94,7 @@ export DB_PASSWORD=my_secret_password
 
 ## Authentication
 
-All endpoints except `/login`, `/login-error`, `/css/**`, and `/actuator/health` require authentication. Category and menu management is restricted to `ADMIN` role; orders can be viewed/created by any authenticated user.
+All endpoints except `/login`, `/login-error`, `/css/**`, and `/actuator/health` require authentication. Category, menu, and inventory management (`/categories/**`, `/menu/**`, `/inventory/**`) is restricted to the `ADMIN` role; orders can be viewed/created by any authenticated user.
 
 ### Seeded Admin User
 
@@ -143,9 +149,10 @@ mvn -q clean verify  # clean build with tests (no verbose output)
 
 Test groups:
 
-- `OrderServiceTest` — unit tests for order creation logic (item availability filtering, quantity validation, total calculation)
+- `OrderServiceTest` — unit tests for order creation logic (item availability filtering, quantity validation, total calculation, stock-check wiring)
+- `InventoryServiceTest` — unit tests for inventory CRUD and low-stock detection boundary conditions
 - `CategoryServiceTest` / `MenuServiceTest` — unit tests for CRUD services
-- `CategoryControllerTest` — `@WebMvcTest` slice tests for 404 handling and role-based access control
+- `CategoryControllerTest` / `InventoryControllerTest` — `@WebMvcTest` slice tests for 404 handling and role-based access control
 
 ## Project Structure
 
@@ -153,6 +160,7 @@ Test groups:
 src/main/java/com/cafeerp/
 ├── category/          # Category CRUD controller, service, repository, entity
 ├── common/            # Security config, global exception handler, auth controller
+├── inventory/         # Inventory tracking controller, service, repository, entity
 ├── menu/              # Menu item CRUD controller, service, repository, entity
 ├── order/             # Order creation/listing controller, service, repository, entities
 └── user/              # User entity, repository, custom UserDetailsService
