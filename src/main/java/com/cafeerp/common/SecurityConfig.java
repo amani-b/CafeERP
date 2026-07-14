@@ -1,6 +1,5 @@
 package com.cafeerp.common;
 
-import com.cafeerp.user.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -8,6 +7,8 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+
+import com.cafeerp.user.CustomUserDetailsService;
 
 @Configuration
 @EnableWebSecurity
@@ -24,7 +25,7 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/actuator/health").permitAll()
-                .requestMatchers("/categories/**", "/menu/**").hasRole("ADMIN")
+                .requestMatchers("/categories/**", "/menu/**", "/inventory/**").hasRole("ADMIN")
                 .requestMatchers("/orders/**", "/").authenticated()
                 .anyRequest().authenticated()
             )

@@ -20,7 +20,7 @@
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link active" aria-current="page" th:href="@{/menu}">Menu</a></li>
                 <li class="nav-item"><a class="nav-link" th:href="@{/orders}">Orders</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Inventory</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/inventory}">Inventory</a></li>
                 <li class="nav-item">
                     <form th:action="@{/logout}" method="post" class="d-inline">
                         <button type="submit" class="nav-link btn btn-link border-0 bg-transparent" style="text-decoration:none;">Logout</button>
@@ -59,6 +59,7 @@
                 <td>
                     <span class="badge text-bg-success" th:if="${menuItem.available}">Available</span>
                     <span class="badge text-bg-secondary" th:unless="${menuItem.available}">Unavailable</span>
+                    <span class="badge text-bg-warning" th:if="${lowStockItemIds.contains(menuItem.id)}">Low Stock</span>
                 </td>
                 <td class="text-end">
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/menu/edit/{id}(id=${menuItem.id})}">Edit</a>
