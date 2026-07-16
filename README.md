@@ -175,4 +175,4 @@ src/main/resources/
 
 ## Notes
 
-This project is a basic ERP-style demo for cafe operations and can be extended with inventory, payments, reporting, and other features.
+This project is a basic ERP-style demo for cafe operations and can be extended with payments, reporting, and other features.
