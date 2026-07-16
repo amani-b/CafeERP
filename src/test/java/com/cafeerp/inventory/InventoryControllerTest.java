@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.cafeerp.common.GlobalExceptionHandler;
 import com.cafeerp.common.SecurityConfig;
 import com.cafeerp.user.CustomUserDetailsService;
+import com.cafeerp.user.UserRepository;
 
 @WebMvcTest(InventoryController.class)
 @Import({GlobalExceptionHandler.class, SecurityConfig.class})
@@ -28,6 +29,9 @@ class InventoryControllerTest {
 
     @MockBean
     private CustomUserDetailsService customUserDetailsService;
+
+    @MockBean
+    private UserRepository userRepository;
 
     // -------------------------------------------------------
     //  Authorization — STAFF gets 403, ADMIN gets 200/302

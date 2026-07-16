@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.cafeerp.common.GlobalExceptionHandler;
 import com.cafeerp.common.SecurityConfig;
 import com.cafeerp.user.CustomUserDetailsService;
+import com.cafeerp.user.UserRepository;
 
 @WebMvcTest(CategoryController.class)
 @Import({GlobalExceptionHandler.class, SecurityConfig.class})
@@ -27,6 +28,9 @@ class CategoryControllerTest {
 
     @MockBean
     private CustomUserDetailsService customUserDetailsService;
+
+    @MockBean
+    private UserRepository userRepository;
 
     // -------------------------------------------------------
     //  Group 3: 404 on nonexistent category edit
