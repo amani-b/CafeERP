@@ -19,7 +19,7 @@ CafeERP is a Spring Boot web application for managing cafe operations — catego
 - Actuator health endpoint (`/actuator/health`) for monitoring
 - Dev / Prod profile support
 
-## Tech Stack
+## Tech stack
 
 - Java 21
 - Spring Boot 3.3
@@ -74,7 +74,7 @@ mvn spring-boot:run
 mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-### Database Connection
+### Database connection
 
 Configure via environment variables:
 
@@ -98,7 +98,7 @@ All endpoints except `/login`, `/login-error`, `/css/**`, and `/actuator/health`
 
 Any authenticated user can change their own password at `/account/password`.
 
-### Seeded Admin User
+### Seeded admin user
 
 The migration `V2__add_users.sql` seeds one admin user. See that file for the hashed credentials.
 
@@ -106,7 +106,7 @@ Migration `V4__add_must_change_password.sql` sets a `mustChangePassword` flag on
 
 **⚠️ Security:** The migration includes a placeholder BCrypt hash. You **must** change this password immediately after first login by updating the hash in the database or by writing a new Flyway migration. Do not rely on the seeded value in production.
 
-## Running the Application
+## Running the app
 
 1. Clone the repository.
 2. Ensure PostgreSQL is running and the database exists (e.g. `cafe_erp`).
@@ -125,7 +125,7 @@ This application is deployed via Docker on [Render](https://render.com/) using t
 
 The database is hosted on [Neon](https://neon.tech/) rather than Render's own managed Postgres. Render's free-tier Postgres expires after approximately 30 days; Neon's free tier is permanent, making it a better fit for a demo / low-budget deployment.
 
-### Required Environment Variables
+### Required env variables
 
 When deploying on Render, set the following environment variables in the Render dashboard:
 
@@ -138,15 +138,15 @@ When deploying on Render, set the following environment variables in the Render 
 
 The application listens on the port provided by Render via the `PORT` environment variable (defaults to `8080`).
 
-### Health Check
+### Health check
 
 Render uses the `/actuator/health` endpoint to determine when the application is ready. This endpoint is publicly accessible and returns a JSON status — see [Health Check](#health-check) below for details.
 
-### Free-Tier Cold Starts
+### Free-tier cold starts
 
 On Render's free tier, the web service spins down after 15 minutes of inactivity. The next request triggers a cold start that takes approximately 30–60 seconds before the application responds. This is normal behaviour for the free plan.
 
-## Health Check
+## Health check
 
 Spring Boot Actuator is configured to expose **only** the health endpoint:
 
@@ -187,7 +187,7 @@ Test groups:
 - `CategoryServiceTest` / `MenuServiceTest` — unit tests for CRUD services
 - `CategoryControllerTest` / `InventoryControllerTest` — `@WebMvcTest` slice tests for 404 handling and role-based access control
 
-## Project Structure
+## Project structure
 
 ```
 src/main/java/com/cafeerp/
