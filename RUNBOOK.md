@@ -1,8 +1,8 @@
-# Cafe ERP — Operations Runbook
+# Cafe ERP: Operations Runbook
 
 **Repository:** https://github.com/amani-b/CafeERP  
 **Stack:** Spring Boot 3.3.5 / Java 21 / Maven / PostgreSQL / Flyway  
-**Deployment target:** PaaS (Render or Railway)
+**Deployment target:** PaaS (Render)
 
 ---
 
@@ -16,13 +16,13 @@
 
 ---
 
-## 1. Neon Built-In Backup & Instant Restore
+## 1. Built-in backup & instant restore in Neon
 
 The application's database is hosted on **Neon** (separate from the web
 service, which runs on Render). Neon provides point-in-time restore from the
 Neon Console. This codebase does **not** implement any backup logic.
 
-### Free-tier limitation — 6-hour restore window
+### Free-tier limitation -- 6-hour restore window
 
 > **⚠️ On Neon's free tier, point-in-time history is retained for only
 > **6 hours**. Any data older than 6 hours **cannot** be recovered via
@@ -51,7 +51,7 @@ Neon Console. This codebase does **not** implement any backup logic.
 
 ---
 
-## 2. Manual Ad-Hoc Backup (pg_dump)
+## 2. Manual ad-hoc backup (pg_dump)
 
 Because Neon's free tier limits you to a 6-hour restore window, manual
 `pg_dump` backups are the only way to recover data older than 6 hours.
@@ -132,7 +132,7 @@ effectively resetting the target database to the state captured in the dump.
 
 ---
 
-## 3. First-Deploy Checklist
+## 3. First-deploy checklist
 
 Use this checklist the very first time you deploy this application to a
 production environment.
@@ -210,7 +210,7 @@ and Spring Boot validates the JPA entities match the schema.
 
 ---
 
-## 4. Incident Response — App Is Down
+## 4. Incident response for when app is down
 
 If the application is returning 5xx errors or not responding at all, follow
 this triage in order.
@@ -271,7 +271,7 @@ If the app process repeatedly crashes (the platform will show repeated
 
 ---
 
-## 5. Rolling Back a Bad Deploy
+## 5. Rolling back a bad deploy
 
 > **⚠️ The exact mechanism depends on the platform. The general patterns are
 > described below. Fill in the platform-specific navigation details.**
