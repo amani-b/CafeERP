@@ -38,6 +38,15 @@ public class OrderService {
         return orderRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    @Transactional(readOnly = true)
+    public Order findById(Long id) {
+        return orderRepository.findByIdWithItems(id)
+                .orElseThrow(() -> {
+                    log.warn("Order not found: id={}", id);
+                    return new IllegalArgumentException("Order not found");
+                });
+    }
+
     @Transactional
     public Order createOrder(Map<Long, Integer> quantities) {
         Order order = new Order();

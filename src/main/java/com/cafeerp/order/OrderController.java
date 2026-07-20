@@ -3,14 +3,16 @@ package com.cafeerp.order;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.cafeerp.menu.MenuService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import com.cafeerp.menu.MenuService;
 
 @Controller
 @RequestMapping("/orders")
@@ -28,6 +30,12 @@ public class OrderController {
     public String list(Model model) {
         model.addAttribute("orders", orderService.findAll());
         return "orders/list";
+    }
+
+    @GetMapping("/{id}")
+    public String receipt(@PathVariable Long id, Model model) {
+        model.addAttribute("order", orderService.findById(id));
+        return "orders/receipt";
     }
 
     @GetMapping("/new")

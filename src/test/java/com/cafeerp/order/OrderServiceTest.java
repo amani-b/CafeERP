@@ -41,6 +41,12 @@ class OrderServiceTest {
     @InjectMocks
     private OrderService orderService;
 
+    private Order orderWithId(Long id) {
+        Order order = new Order();
+        order.setId(id);
+        return order;
+    }
+
     private MenuItem availableItem(Long id, String name, BigDecimal price) {
         MenuItem item = new MenuItem();
         item.setId(id);
@@ -68,6 +74,31 @@ class OrderServiceTest {
         inv.setTrackInventory(false);
         inv.setStockQuantity(0);
         return inv;
+    }
+
+    // -------------------------------------------------------
+    //  findById — happy path
+    // -------------------------------------------------------
+    @Test
+    void findById_whenExists_shouldReturnOrder() {
+        Order order = orderWithId(1L);
+        when(orderRepository.findByIdWithItems(1L)).thenReturn(java.util.Optional.of(order));
+
+        Order result = orderService.findById(1L);
+
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(orderRepository).findByIdWithItems(1L);
+    }
+
+    @Test
+    void findById_whenMissing_shouldThrow() {
+        when(orderRepository.findByIdWithItems(999L)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> orderService.findById(999L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Order not found");
+
+        verify(orderRepository).findByIdWithItems(999L);
     }
 
     // -------------------------------------------------------
