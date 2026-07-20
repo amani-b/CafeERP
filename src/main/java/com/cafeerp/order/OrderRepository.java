@@ -9,4 +9,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("select distinct o from CafeOrder o left join fetch o.items order by o.createdAt desc")
     List<Order> findAllByOrderByCreatedAtDesc();
+
+    @Query("select o from CafeOrder o left join fetch o.items where o.id = :id")
+    java.util.Optional<Order> findByIdWithItems(Long id);
 }
