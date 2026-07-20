@@ -1,5 +1,7 @@
 # CafeERP
 
+**Live: https://cafeerp.onrender.com**
+
 CafeERP is a Spring Boot web application for managing cafe operations — categories, menu items, and customer orders — with role-based access for staff and administrators.
 
 ## Features
