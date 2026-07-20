@@ -47,11 +47,12 @@
                 <th>Items</th>
                 <th>Total Amount</th>
                 <th>#</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(orders)}">
-                <td colspan="5" class="text-center text-muted py-4">No orders yet.</td>
+                <td colspan="6" class="text-center text-muted py-4">No orders yet.</td>
             </tr>
             <tr th:each="order : ${orders}">
                 <td th:text="${order.id}">1</td>
@@ -65,6 +66,9 @@
                 </td>
                 <td th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0.00</td>
                 <td th:text="${order.itemCount}">0</td>
+                <td>
+                    <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${order.id})}">View / Print</a>
+                </td>
             </tr>
             </tbody>
         </table>
