@@ -20,6 +20,7 @@
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/menu}">Menu</a></li>
                 <li class="nav-item"><a class="nav-link active" aria-current="page" th:href="@{/orders}">Orders</a></li>
+                <li class="nav-item" sec:authorize="hasAnyRole('KITCHEN','ADMIN')"><a class="nav-link" th:href="@{/kitchen}">Kitchen</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/reports}">Reports</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/inventory}">Inventory</a></li>
                 <li class="nav-item"><a class="nav-link" th:href="@{/account/password}">Change Password</a></li>
@@ -48,12 +49,14 @@
                 <th>Items</th>
                 <th>Total Amount</th>
                 <th>#</th>
+                <th>Status</th>
+                <th></th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(orders)}">
-                <td colspan="6" class="text-center text-muted py-4">No orders yet.</td>
+                <td colspan="8" class="text-center text-muted py-4">No orders yet.</td>
             </tr>
             <tr th:each="order : ${orders}">
                 <td th:text="${order.id}">1</td>
@@ -67,6 +70,17 @@
                 </td>
                 <td th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">0.00</td>
                 <td th:text="${order.itemCount}">0</td>
+                <td>
+                    <span class="badge bg-secondary" th:text="${order.status}">PENDING</span>
+                </td>
+                <td>
+                    <form th:action="@{/orders/{id}/status(id=${order.id})}" method="post" class="d-inline">
+                        <select name="status" class="form-select form-select-sm d-inline w-auto" style="display:inline-block;width:auto;">
+                            <option th:each="s : ${statuses}" th:value="${s.name()}" th:text="${s.name()}" th:selected="${s == order.status}"></option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Update</button>
+                    </form>
+                </td>
                 <td>
                     <a class="btn btn-sm btn-outline-primary" th:href="@{/orders/{id}(id=${order.id})}">View / Print</a>
                 </td>
