@@ -2,6 +2,7 @@ package com.cafeerp.order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -404,6 +405,58 @@ class OrderServiceTest {
 
         verify(inventoryRepository).decrementStockIfSufficient(eq(1L), eq(5), any(LocalDateTime.class));
         verify(orderRepository, never()).save(any());
+    }
+
+    // -------------------------------------------------------
+    //  updateStatus — happy path
+    // -------------------------------------------------------
+    @Test
+    void updateStatus_withValidId_shouldUpdateAndReturnOrder() {
+        Order order = orderWithId(1L);
+        order.setStatus(OrderStatus.PENDING);
+        when(orderRepository.findByIdWithItems(1L)).thenReturn(java.util.Optional.of(order));
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Order result = orderService.updateStatus(1L, OrderStatus.PREPARING);
+
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.PREPARING);
+        verify(orderRepository).save(order);
+    }
+
+    // -------------------------------------------------------
+    //  updateStatus — not found
+    // -------------------------------------------------------
+    @Test
+    void updateStatus_withNonexistentId_shouldThrow() {
+        when(orderRepository.findByIdWithItems(999L)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> orderService.updateStatus(999L, OrderStatus.COMPLETED))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Order not found");
+
+        verify(orderRepository, never()).save(any());
+    }
+
+    // -------------------------------------------------------
+    //  findActiveOrders — excludes COMPLETED
+    // -------------------------------------------------------
+    @Test
+    void findActiveOrders_shouldExcludeCompleted() {
+        Order pending = orderWithId(1L);
+        pending.setStatus(OrderStatus.PENDING);
+        Order completed = orderWithId(2L);
+        completed.setStatus(OrderStatus.COMPLETED);
+
+        when(orderRepository.findByStatusIn(List.of(OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY)))
+                .thenReturn(List.of(pending));
+
+        List<Order> result = orderService.findActiveOrders();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+        assertThat(result.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(orderRepository).findByStatusIn(List.of(OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY));
     }
 
     // -------------------------------------------------------

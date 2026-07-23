@@ -47,6 +47,25 @@ public class OrderService {
                 });
     }
 
+    @Transactional(readOnly = true)
+    public List<Order> findActiveOrders() {
+        return orderRepository.findByStatusIn(
+                List.of(OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY));
+    }
+
+    @Transactional
+    public Order updateStatus(Long id, OrderStatus newStatus) {
+        Order order = orderRepository.findByIdWithItems(id)
+                .orElseThrow(() -> {
+                    log.warn("Order not found for status update: id={}", id);
+                    return new IllegalArgumentException("Order not found");
+                });
+        order.setStatus(newStatus);
+        Order saved = orderRepository.save(order);
+        log.info("Order status updated: id={}, status={}", saved.getId(), saved.getStatus());
+        return saved;
+    }
+
     @Transactional
     public Order createOrder(Map<Long, Integer> quantities) {
         Order order = new Order();
