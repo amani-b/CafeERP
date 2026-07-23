@@ -16,6 +16,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("select o from CafeOrder o left join fetch o.items where o.id = :id")
     java.util.Optional<Order> findByIdWithItems(Long id);
 
+    @Query("select distinct o from CafeOrder o left join fetch o.items "
+         + "where o.status in :statuses order by o.createdAt desc")
+    List<Order> findByStatusIn(@Param("statuses") List<OrderStatus> statuses);
+
     @Query("select coalesce(sum(o.totalAmount), 0) from CafeOrder o where o.createdAt >= :from and o.createdAt <= :to")
     BigDecimal sumTotalAmountBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 

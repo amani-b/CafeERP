@@ -8,6 +8,8 @@ import java.util.List;
 import com.cafeerp.menu.MenuItem;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,6 +31,9 @@ public class Order {
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
     private Integer itemCount = 0;
+
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status = OrderStatus.PENDING;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
@@ -102,5 +107,13 @@ public class Order {
     public void setItems(List<OrderItem> items) {
         this.items = items;
         normalizeTotals();
+    }
+
+    public OrderStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(OrderStatus status) {
+        this.status = status;
     }
 }

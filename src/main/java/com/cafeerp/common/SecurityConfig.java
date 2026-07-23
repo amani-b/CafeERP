@@ -2,6 +2,7 @@ package com.cafeerp.common;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -31,6 +32,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/actuator/health").permitAll()
                 .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**").hasRole("ADMIN")
+                .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
+                .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN")
                 .requestMatchers("/orders/**", "/", "/account/**").authenticated()
                 .anyRequest().authenticated()
             )

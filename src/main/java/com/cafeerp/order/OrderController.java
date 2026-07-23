@@ -29,6 +29,7 @@ public class OrderController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("orders", orderService.findAll());
+        model.addAttribute("statuses", OrderStatus.values());
         return "orders/list";
     }
 
@@ -36,6 +37,18 @@ public class OrderController {
     public String receipt(@PathVariable Long id, Model model) {
         model.addAttribute("order", orderService.findById(id));
         return "orders/receipt";
+    }
+
+    @PostMapping("/{id}/status")
+    public String updateStatus(@PathVariable Long id,
+                               @RequestParam OrderStatus status,
+                               RedirectAttributes redirectAttributes) {
+        try {
+            orderService.updateStatus(id, status);
+        } catch (IllegalArgumentException ex) {
+            // handled by GlobalExceptionHandler -> 404
+        }
+        return "redirect:/orders";
     }
 
     @GetMapping("/new")
