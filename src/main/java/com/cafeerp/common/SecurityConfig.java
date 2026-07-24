@@ -31,7 +31,7 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/actuator/health").permitAll()
-                .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**").hasRole("ADMIN")
+                .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**", "/assistant/admin/**").hasRole("ADMIN")
                 .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
                 .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN")
