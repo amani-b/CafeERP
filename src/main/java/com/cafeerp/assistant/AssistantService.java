@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,23 +28,37 @@ public class AssistantService {
 
     private static final int MAX_TOOL_ROUNDS = 5;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-    private static final String MODEL = "llama-3.3-70b-versatile";
+    private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
     private final AssistantMessageRepository messageRepository;
     private final AssistantToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final List<ModelProvider> providers;
+    private final DeterministicFallbackHandler fallbackHandler;
 
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantToolRegistry toolRegistry,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            AssistantConfigProperties configProperties,
+                            DeterministicFallbackHandler fallbackHandler) {
         this.messageRepository = messageRepository;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
+        this.fallbackHandler = fallbackHandler;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(TIMEOUT)
                 .build();
+
+        // Build ordered provider list from configuration
+        this.providers = configProperties.getProviders().stream()
+                .map(pc -> new ModelProvider(
+                        pc.getName(),
+                        pc.getBaseUrl(),
+                        pc.getApiKeyEnvVar(),
+                        pc.getModel(),
+                        pc.isSupportsMinTokens()))
+                .toList();
     }
 
     /**
@@ -76,15 +91,57 @@ public class AssistantService {
 
         // 4. Determine role-appropriate tools
         List<Map<String, Object>> tools = toolsForRole(user.getRole());
+        Set<String> allowedToolNames = toolRegistry.allowedToolNamesForRole(user.getRole());
 
-        // 5. Tool-call loop
+        // 5. Try each provider in order
+        for (ModelProvider provider : providers) {
+            if (!provider.hasApiKey()) {
+                log.warn("Skipping provider {}: API key not set (env var {})",
+                        provider.name(), provider.apiKeyEnvVar());
+                continue;
+            }
+
+            AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
+                    user);
+            if (reply != null) {
+                return reply;
+            }
+        }
+
+        // 6. All providers failed — fall through to deterministic Tier 2
+        log.warn("All AI providers failed for user '{}'; falling back to deterministic Tier 2", user.getUsername());
+        AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
+        if (tier2Reply == null) {
+            tier2Reply = fallbackHandler.unavailableMessage(user.getRole());
+        }
+        // Persist Tier 2 responses too
+        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+        return tier2Reply;
+    }
+
+    /**
+     * Try a single model provider's tool-calling loop. Returns null if the provider
+     * fails and the caller should try the next one.
+     */
+    @SuppressWarnings("unchecked")
+    private AssistantReply tryProvider(ModelProvider provider,
+                                       List<Map<String, Object>> messages,
+                                       List<Map<String, Object>> tools,
+                                       Set<String> allowedToolNames,
+                                       User user) {
+        log.info("Attempting provider: {} (model: {})", provider.name(), provider.model());
+
+        // Deep-copy messages so each provider starts fresh
+        List<Map<String, Object>> msgs = deepCopyMessages(messages);
+
         List<String> firedToolNames = new ArrayList<>();
         Map<String, String> toolNameToUrl = buildSourceUrlMap(user.getRole());
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            Map<String, Object> response = callGroq(messages, tools);
+            Map<String, Object> response = callProvider(provider, msgs, tools);
             if (response == null) {
-                return new AssistantReply("I couldn't get an answer right now. Please try again.", List.of());
+                log.warn("Provider {} failed (null response), moving to next", provider.name());
+                return null;
             }
 
             Map<String, Object> choice = ((List<Map<String, Object>>) response.get("choices")).get(0);
@@ -111,15 +168,32 @@ public class AssistantService {
             }
 
             // Add the assistant's message with tool_calls to the conversation
-            messages.add(message);
+            msgs.add(message);
 
-            // Execute each tool call
+            // Execute each tool call — with validation against allowed tool names
+            boolean hadValidCall = false;
             for (Map<String, Object> tc : toolCalls) {
                 String id = (String) tc.get("id");
                 Map<String, Object> function = (Map<String, Object>) tc.get("function");
                 String name = (String) function.get("name");
                 String args = (String) function.get("arguments");
 
+                // SECURITY: Validate tool name against the request's allowed set
+                if (!allowedToolNames.contains(name)) {
+                    log.warn("Provider {} called tool '{}' which is NOT in the allowed set {} — rejecting",
+                            provider.name(), name, allowedToolNames);
+                    Map<String, Object> toolMessage = new HashMap<>();
+                    toolMessage.put("role", "tool");
+                    toolMessage.put("tool_call_id", id);
+                    toolMessage.put("content", "Error: The tool '" + name
+                            + "' is not available. You may only use these tools: "
+                            + String.join(", ", allowedToolNames)
+                            + ". Please correct your response and try again.");
+                    msgs.add(toolMessage);
+                    continue;
+                }
+
+                hadValidCall = true;
                 firedToolNames.add(name);
                 log.debug("Executing tool: {} with args: {}", name, args);
 
@@ -129,11 +203,16 @@ public class AssistantService {
                 toolMessage.put("role", "tool");
                 toolMessage.put("tool_call_id", id);
                 toolMessage.put("content", result);
-                messages.add(toolMessage);
+                msgs.add(toolMessage);
+            }
+
+            if (!hadValidCall) {
+                log.warn("Provider {}: all tool calls in round {} were rejected", provider.name(), round);
             }
         }
 
-        // Cap reached — graceful fallback
+        // Cap reached — graceful fallback (don't fail the provider, return a polite message)
+        log.warn("Provider {} hit {} round cap", provider.name(), MAX_TOOL_ROUNDS);
         String fallback = "I've gathered some information but need more detail to give a complete answer. "
                 + "Could you rephrase or narrow down your question?";
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, fallback));
@@ -227,47 +306,108 @@ public class AssistantService {
         };
     }
 
+    /**
+     * Call a model provider's /chat/completions endpoint with retry logic.
+     * Returns null if the provider fails (to trigger failover).
+     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> callGroq(List<Map<String, Object>> messages,
-                                          List<Map<String, Object>> tools) {
-        String apiKey = System.getenv("GROQ_API_KEY");
+    private Map<String, Object> callProvider(ModelProvider provider,
+                                             List<Map<String, Object>> messages,
+                                             List<Map<String, Object>> tools) {
+        String apiKey = provider.apiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            log.error("GROQ_API_KEY environment variable is not set");
+            log.error("{} API key not set (env var {})", provider.name(), provider.apiKeyEnvVar());
             return null;
         }
 
-        try {
-            Map<String, Object> body = new HashMap<>();
-            body.put("model", MODEL);
-            body.put("messages", messages);
-            body.put("tools", tools);
-            body.put("tool_choice", "auto");
+        // Retry once for transient failures
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                Map<String, Object> body = new HashMap<>();
+                body.put("model", provider.model());
+                body.put("messages", messages);
+                body.put("tools", tools);
+                body.put("tool_choice", "auto");
+                if (provider.supportsMinTokens()) {
+                    body.put("min_tokens", 0);
+                }
 
-            String jsonBody = objectMapper.writeValueAsString(body);
+                String jsonBody = objectMapper.writeValueAsString(body);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GROQ_URL))
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .timeout(TIMEOUT)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(provider.url()))
+                        .header("Authorization", "Bearer " + apiKey)
+                        .header("Content-Type", "application/json")
+                        .timeout(TIMEOUT)
+                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                        .build();
 
-            HttpResponse<String> httpResponse = httpClient.send(request,
-                    HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> httpResponse = httpClient.send(request,
+                        HttpResponse.BodyHandlers.ofString());
 
-            if (httpResponse.statusCode() >= 400) {
-                log.warn("Groq API error: status={}, body={}",
-                        httpResponse.statusCode(), httpResponse.body());
+                int status = httpResponse.statusCode();
+
+                if (status == 429) {
+                    log.warn("{} rate-limited (429) on attempt {}; retrying after {}ms",
+                            provider.name(), attempt + 1, RETRY_DELAY.toMillis());
+                    if (attempt == 0) {
+                        Thread.sleep(RETRY_DELAY.toMillis());
+                        continue;
+                    }
+                    return null;
+                }
+
+                if (status >= 500) {
+                    log.warn("{} server error ({}): attempt {}; body={}",
+                            provider.name(), status, attempt + 1, httpResponse.body());
+                    if (attempt == 0) {
+                        Thread.sleep(RETRY_DELAY.toMillis());
+                        continue;
+                    }
+                    return null;
+                }
+
+                if (status >= 400) {
+                    log.warn("{} API error: status={}, body={}",
+                            provider.name(), status, httpResponse.body());
+                    return null;
+                }
+
+                return objectMapper.readValue(httpResponse.body(),
+                        new TypeReference<Map<String, Object>>() {});
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("{} call interrupted", provider.name());
+                return null;
+            } catch (Exception e) {
+                log.error("{} API call failed on attempt {}", provider.name(), attempt + 1, e);
+                if (attempt == 0) {
+                    try {
+                        Thread.sleep(RETRY_DELAY.toMillis());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                    continue;
+                }
                 return null;
             }
-
-            return objectMapper.readValue(httpResponse.body(),
-                    new TypeReference<Map<String, Object>>() {});
-        } catch (Exception e) {
-            log.error("Groq API call failed", e);
-            return null;
         }
+
+        return null;
+    }
+
+    /**
+     * Deep-copy a list of message maps so each provider gets an independent copy.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> deepCopyMessages(List<Map<String, Object>> original) {
+        List<Map<String, Object>> copy = new ArrayList<>();
+        for (Map<String, Object> msg : original) {
+            copy.add(new HashMap<>(msg));
+        }
+        return copy;
     }
 
     // ---------------------------------------------------------------
