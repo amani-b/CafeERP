@@ -3,18 +3,18 @@ package com.cafeerp.assistant;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -150,6 +150,47 @@ class AssistantControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    // -------------------------------------------------------
+    //  Outer catch-all: unhandled exceptions → graceful fallback
+    // -------------------------------------------------------
+
+    @Test
+    @WithMockUser(username = "staff1", roles = "STAFF")
+    void chat_whenServiceThrowsUnhandledException_shouldReturnGracefulFallback() throws Exception {
+        when(userRepository.findByUsername("staff1")).thenReturn(Optional.of(staffUser));
+        when(assistantService.processMessage(any(), anyString()))
+                .thenThrow(new RuntimeException("Simulated catastrophic failure"));
+
+        // The outer catch-all should return a graceful fallback (200 OK, not 500)
+        when(assistantService.getFallbackReply(staffUser))
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
+
+        mockMvc.perform(post("/assistant/chat")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"What is the meaning of life?\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "staff1", roles = "STAFF")
+    void chat_whenFallbackReplyItselfFails_shouldReturnLastResortFallback() throws Exception {
+        when(userRepository.findByUsername("staff1")).thenReturn(Optional.of(staffUser));
+        // processMessage throws (the primary failure)
+        when(assistantService.processMessage(any(), anyString()))
+                .thenThrow(new RuntimeException("Simulated failure in processMessage"));
+        // getFallbackReply also throws (the nested failure)
+        when(assistantService.getFallbackReply(staffUser))
+                .thenThrow(new RuntimeException("Simulated failure in getFallbackReply"));
+
+        // The outer catch-all should catch both and return the last-resort fallback
+        mockMvc.perform(post("/assistant/chat")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Hello\"}"))
+                .andExpect(status().isOk());
     }
 
     // -------------------------------------------------------
