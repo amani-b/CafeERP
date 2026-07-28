@@ -2,6 +2,8 @@ package com.cafeerp.assistant;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +17,7 @@ import com.cafeerp.order.Order;
 import com.cafeerp.order.OrderService;
 import com.cafeerp.order.OrderStatus;
 import com.cafeerp.report.ReportService;
+import com.cafeerp.user.Role;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -171,6 +174,26 @@ public class AssistantToolRegistry {
                 )
             )
         );
+    }
+
+    // ---------------------------------------------------------------
+    //  Allowed tool names per role (shared with deterministic fallback)
+    // ---------------------------------------------------------------
+
+    /**
+     * Returns the set of tool names that the given role is allowed to call.
+     * Used by both the AI tool-calling path and the deterministic Tier 2 fallback
+     * to enforce consistent role scoping.
+     */
+    public Set<String> allowedToolNamesForRole(Role role) {
+        List<Map<String, Object>> tools = switch (role) {
+            case STAFF -> toolsForStaff();
+            case KITCHEN -> toolsForKitchen();
+            case ADMIN -> toolsForAdmin();
+        };
+        return tools.stream()
+                .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))
+                .collect(Collectors.toSet());
     }
 
     // ---------------------------------------------------------------
