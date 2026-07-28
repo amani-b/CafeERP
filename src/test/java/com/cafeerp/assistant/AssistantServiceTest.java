@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.Mock;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -96,11 +97,12 @@ class AssistantServiceTest {
     }
 
     // ---------------------------------------------------------------
-    //  Tier 2 — deterministic fallback (no providers configured)
+    //  Tier 2 FIRST — deterministic pattern matching before any provider
     // ---------------------------------------------------------------
 
     @Test
-    void tier2_orderStatusQuery_shouldAnswer() {
+    void tier2First_orderStatusQuery_shouldAnswerWithoutCallingProviders() {
+        // When Tier 2 matches, no provider call should be attempted
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(new AssistantReply("Order #5: status=READY", List.of()));
 
@@ -108,11 +110,15 @@ class AssistantServiceTest {
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("Order #5"));
+
+        // Tier 2 was consulted
         verify(fallbackHandler).tryAnswer(anyString(), eq(Role.STAFF));
+        // Tier 2 matched, so unavailableMessage should NOT be called
+        verify(fallbackHandler, never()).unavailableMessage(any());
     }
 
     @Test
-    void tier2_menuQuery_shouldAnswer() {
+    void tier2First_menuQuery_shouldAnswer() {
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(new AssistantReply("Here are the current menu items:", List.of()));
 
@@ -123,7 +129,7 @@ class AssistantServiceTest {
     }
 
     @Test
-    void tier2_adminOnlyQuery_byStaff_shouldBeRefused() {
+    void tier2First_adminOnlyQuery_byStaff_shouldBeRefused() {
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(new AssistantReply(
                         "I'm sorry, sales and revenue information is only available to managers and administrators.",
@@ -136,21 +142,7 @@ class AssistantServiceTest {
     }
 
     @Test
-    void tier2_unmatchedQuery_shouldReturnUnavailableMessage() {
-        lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
-                .thenReturn(null);
-        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
-                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
-
-        AssistantReply reply = assistantService.processMessage(staffUser, "What is the meaning of life?");
-
-        assertNotNull(reply);
-        assertTrue(reply.text().contains("temporarily unavailable"));
-        verify(fallbackHandler).unavailableMessage(Role.STAFF);
-    }
-
-    @Test
-    void tier2_kitchenOrderLink_shouldNotContainOrdersPath() {
+    void tier2First_kitchenOrderLink_shouldNotContainOrdersPath() {
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.KITCHEN)))
                 .thenReturn(new AssistantReply("Order #5: status=PREPARING",
                         List.of(new AssistantService.SourceLink("View Order", "/kitchen"))));
@@ -163,41 +155,36 @@ class AssistantServiceTest {
     }
 
     // ---------------------------------------------------------------
-    //  Multi-provider failover
+    //  Unmatched queries fall through to AI providers
     // ---------------------------------------------------------------
 
     @Test
-    void groqFailure_shouldTryCerebras() {
-        ProviderConfig groq = new ProviderConfig();
-        groq.setName("groq");
-        groq.setBaseUrl("https://api.groq.com/openai/v1");
-        groq.setApiKeyEnvVar("GROQ_API_KEY_NONEXISTENT");
-        groq.setModel("llama-3.3-70b-versatile");
-        groq.setSupportsMinTokens(true);
+    void unmatchedQuery_noProvidersConfigured_shouldUseUnavailableMessage() {
+        // Tier 2 doesn't match this query
+        lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
+                .thenReturn(null);
+        // No providers configured (default), so fall through to unavailable
+        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
-        ProviderConfig cerebras = new ProviderConfig();
-        cerebras.setName("cerebras");
-        cerebras.setBaseUrl("https://api.cerebras.ai/v1");
-        cerebras.setApiKeyEnvVar("CEREBRAS_API_KEY_NONEXISTENT");
-        cerebras.setModel("gpt-oss-120b");
-        cerebras.setSupportsMinTokens(false);
-
-        when(configProperties.getProviders()).thenReturn(List.of(groq, cerebras));
-        when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
-                .thenReturn(new AssistantReply("Tier 2 answer", List.of()));
-
-        assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), configProperties, fallbackHandler);
-
-        AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
+        AssistantReply reply = assistantService.processMessage(staffUser, "What is the meaning of life?");
 
         assertNotNull(reply);
-        assertTrue(reply.text().contains("Tier 2"));
-        verify(fallbackHandler).tryAnswer(anyString(), eq(Role.STAFF));
+        assertTrue(reply.text().contains("temporarily unavailable"));
+        verify(fallbackHandler).unavailableMessage(Role.STAFF);
     }
 
+    // ---------------------------------------------------------------
+    //  Multi-provider failover (Groq → Cerebras) for unmatched queries
+    // ---------------------------------------------------------------
+
     @Test
-    void bothProvidersFail_shouldFallToTier2() {
+    void unmatchedQuery_withProviders_failsToTier2Unavailable() {
+        // Tier 2 doesn't match
+        lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
+                .thenReturn(null);
+
+        // Two providers with missing API keys (will be skipped by hasApiKey check)
         ProviderConfig groq = new ProviderConfig();
         groq.setName("groq");
         groq.setBaseUrl("https://api.groq.com/openai/v1");
@@ -213,10 +200,8 @@ class AssistantServiceTest {
         cerebras.setSupportsMinTokens(false);
 
         when(configProperties.getProviders()).thenReturn(List.of(groq, cerebras));
-        when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
-                .thenReturn(null);
         when(fallbackHandler.unavailableMessage(Role.STAFF))
-                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable.", List.of()));
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         assistantService = new AssistantService(messageRepository, toolRegistry,
                 new ObjectMapper(), configProperties, fallbackHandler);
@@ -225,6 +210,7 @@ class AssistantServiceTest {
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("temporarily unavailable"));
+        verify(fallbackHandler).unavailableMessage(Role.STAFF);
     }
 
     // ---------------------------------------------------------------
@@ -243,6 +229,7 @@ class AssistantServiceTest {
 
     @Test
     void apiError_shouldReturnGracefulMessage() {
+        // Tier 2 doesn't match
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(null);
         lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
@@ -286,5 +273,30 @@ class AssistantServiceTest {
 
         assertNotNull(reply);
         assertEquals("OK", reply.text());
+    }
+
+    // ---------------------------------------------------------------
+    //  getFallbackReply — used by controller's outer catch-all
+    // ---------------------------------------------------------------
+
+    @Test
+    void getFallbackReply_shouldReturnUnavailableMessage() {
+        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
+
+        AssistantReply reply = assistantService.getFallbackReply(staffUser);
+
+        assertNotNull(reply);
+        assertTrue(reply.text().contains("temporarily unavailable"));
+    }
+
+    @Test
+    void getFallbackReply_shouldPersistMessage() {
+        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable.", List.of()));
+
+        assistantService.getFallbackReply(staffUser);
+
+        verify(messageRepository).save(any(AssistantMessage.class));
     }
 }
