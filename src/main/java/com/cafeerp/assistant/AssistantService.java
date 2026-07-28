@@ -63,16 +63,37 @@ public class AssistantService {
 
     /**
      * Process a user message and return the assistant's reply with source links.
+     * <p>
+     * Order of operations:
+     * <ol>
+     *   <li>Persist the user's message</li>
+     *   <li>Try Tier 2 deterministic pattern-matching first — if a known pattern
+     *       matches, answer immediately without calling any AI provider</li>
+     *   <li>If no Tier 2 pattern matched, fall through to the Groq → Cerebras
+     *       provider chain for genuine natural-language understanding</li>
+     *   <li>If every provider fails, return a graceful "unavailable" message
+     *       that lists what the user CAN ask about directly</li>
+     * </ol>
      */
     @Transactional
     public AssistantReply processMessage(User user, String userMessage) {
         // 1. Persist the user's message
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.USER, userMessage));
 
-        // 2. Load conversation history
+        // 2. Try Tier 2 deterministic pattern-matching FIRST
+        //    (before any AI provider call — most real staff queries match here)
+        AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
+        if (tier2Reply != null) {
+            log.debug("Tier 2 matched query for user '{}': pattern={}",
+                    user.getUsername(), userMessage);
+            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+            return tier2Reply;
+        }
+
+        // 3. No Tier 2 match — load conversation history for AI providers
         List<AssistantMessage> history = messageRepository.findByUserOrderByCreatedAtAsc(user);
 
-        // 3. Build the messages array for the API
+        // 4. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
 
         // System prompt (role-specific)
@@ -89,11 +110,11 @@ public class AssistantService {
             messages.add(m);
         }
 
-        // 4. Determine role-appropriate tools
+        // 5. Determine role-appropriate tools
         List<Map<String, Object>> tools = toolsForRole(user.getRole());
         Set<String> allowedToolNames = toolRegistry.allowedToolNamesForRole(user.getRole());
 
-        // 5. Try each provider in order
+        // 6. Try each provider in order
         for (ModelProvider provider : providers) {
             if (!provider.hasApiKey()) {
                 log.warn("Skipping provider {}: API key not set (env var {})",
@@ -108,15 +129,29 @@ public class AssistantService {
             }
         }
 
-        // 6. All providers failed — fall through to deterministic Tier 2
-        log.warn("All AI providers failed for user '{}'; falling back to deterministic Tier 2", user.getUsername());
-        AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
-        if (tier2Reply == null) {
-            tier2Reply = fallbackHandler.unavailableMessage(user.getRole());
+        // 7. All providers failed — return unavailable message
+        log.warn("All AI providers failed for user '{}'; returning unavailable message", user.getUsername());
+        AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole());
+        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text()));
+        return unavailable;
+    }
+
+    /**
+     * Returns a graceful fallback reply for a given user, persisting it
+     * best-effort. Intended for use by the controller's outer catch-all when
+     * an unexpected exception occurs anywhere in the chat handler.
+     *
+     * @param user  the authenticated user
+     * @return a graceful AssistantReply that does not expose error details
+     */
+    public AssistantReply getFallbackReply(User user) {
+        AssistantReply reply = fallbackHandler.unavailableMessage(user.getRole());
+        try {
+            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, reply.text()));
+        } catch (Exception e) {
+            log.error("Failed to persist fallback assistant message for user '{}'", user.getUsername(), e);
         }
-        // Persist Tier 2 responses too
-        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
-        return tier2Reply;
+        return reply;
     }
 
     /**
