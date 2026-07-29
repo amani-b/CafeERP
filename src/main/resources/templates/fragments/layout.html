@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<!-- ============================================================ -->
+<!-- Head fragment: shared <head> contents except <title>         -->
+<!-- ============================================================ -->
+<head th:fragment="head">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+</head>
+
+<!-- ============================================================ -->
+<!-- Top navigation bar fragment                                   -->
+<!-- activePage parameter controls uk-active highlighting          -->
+<!-- ============================================================ -->
+<nav th:fragment="nav(activePage)" class="uk-navbar-container uk-margin-bottom" uk-navbar>
+    <div class="uk-container uk-container-expand">
+        <div class="uk-navbar-left">
+            <a class="uk-navbar-item uk-logo" th:href="@{/}">Cafe ERP</a>
+        </div>
+        <div class="uk-navbar-right">
+            <ul class="uk-navbar-nav uk-visible@l">
+                <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
+                    <a th:href="@{/}">Dashboard</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
+                    <a th:href="@{/categories}">Categories</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'menu'} ? 'uk-active' : ''">
+                    <a th:href="@{/menu}">Menu</a>
+                </li>
+                <li sec:authorize="hasAnyRole('STAFF','ADMIN')" th:classappend="${activePage == 'orders'} ? 'uk-active' : ''">
+                    <a th:href="@{/orders}">Orders</a>
+                </li>
+                <li sec:authorize="hasAnyRole('KITCHEN','ADMIN')" th:classappend="${activePage == 'kitchen'} ? 'uk-active' : ''">
+                    <a th:href="@{/kitchen}">Kitchen</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'reports'} ? 'uk-active' : ''">
+                    <a th:href="@{/reports}">Reports</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'inventory'} ? 'uk-active' : ''">
+                    <a th:href="@{/inventory}">Inventory</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
+                    <a th:href="@{/admin/assistant}">Assistant Logs</a>
+                </li>
+                <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
+                    <a th:href="@{/account/password}">Change Password</a>
+                </li>
+                <li>
+                    <form th:action="@{/logout}" method="post" class="uk-margin-remove">
+                        <button type="submit" class="uk-button uk-button-text uk-navbar-item"
+                                style="text-decoration:none; background: none; border: none; cursor: pointer; color: inherit;">
+                            Logout
+                        </button>
+                    </form>
+                </li>
+            </ul>
+            <!-- Mobile hamburger: toggles offcanvas drawer -->
+            <a class="uk-navbar-toggle uk-hidden@l" uk-navbar-toggle-icon href="#mobile-nav" uk-toggle></a>
+        </div>
+    </div>
+</nav>
+
+<!-- Mobile offcanvas navigation -->
+<div id="mobile-nav" uk-offcanvas="overlay: true; flip: true">
+    <div class="uk-offcanvas-bar">
+        <button class="uk-offcanvas-close" type="button" uk-close></button>
+        <ul class="uk-nav uk-nav-default uk-margin-top">
+            <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
+                <a th:href="@{/}">Dashboard</a>
+            </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
+                <a th:href="@{/categories}">Categories</a>
+            </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'menu'} ? 'uk-active' : ''">
+                <a th:href="@{/menu}">Menu</a>
+            </li>
+            <li sec:authorize="hasAnyRole('STAFF','ADMIN')" th:classappend="${activePage == 'orders'} ? 'uk-active' : ''">
+                <a th:href="@{/orders}">Orders</a>
+            </li>
+            <li sec:authorize="hasAnyRole('KITCHEN','ADMIN')" th:classappend="${activePage == 'kitchen'} ? 'uk-active' : ''">
+                <a th:href="@{/kitchen}">Kitchen</a>
+            </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'reports'} ? 'uk-active' : ''">
+                <a th:href="@{/reports}">Reports</a>
+            </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'inventory'} ? 'uk-active' : ''">
+                <a th:href="@{/inventory}">Inventory</a>
+            </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
+                <a th:href="@{/admin/assistant}">Assistant Logs</a>
+            </li>
+            <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
+                <a th:href="@{/account/password}">Change Password</a>
+            </li>
+            <li class="uk-nav-divider"></li>
+            <li>
+                <form th:action="@{/logout}" method="post">
+                    <button type="submit" class="uk-button uk-button-default uk-width-1-1">Logout</button>
+                </form>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Assistant chat widget fragment                                -->
+<!-- Byte-for-byte identical to the original markup                -->
+<!-- ============================================================ -->
+<div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget">
+    <div id="assistant-chat-panel">
+        <div id="assistant-chat-header">
+            <span>AI Assistant</span>
+            <button id="assistant-chat-close" aria-label="Close">&times;</button>
+        </div>
+        <div id="assistant-chat-messages"></div>
+        <div id="assistant-chat-input-area">
+            <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
+            <button id="assistant-chat-send" aria-label="Send">&uarr;</button>
+        </div>
+    </div>
+    <button id="assistant-chat-bubble" aria-label="Open assistant chat">&#x1F4AC;</button>
+</div>
+<link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
+<script th:src="@{/js/assistant-chat.js}"></script>
+</html>

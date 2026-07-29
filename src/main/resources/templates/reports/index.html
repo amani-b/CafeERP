@@ -4,95 +4,65 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sales Report - Cafe ERP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" th:href="@{/}">Cafe ERP</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mainNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" th:href="@{/}">Dashboard</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/menu}">Menu</a></li>
-                <li class="nav-item"><a class="nav-link" th:href="@{/orders}">Orders</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link active" aria-current="page" th:href="@{/reports}">Reports</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/inventory}">Inventory</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/assistant}">Assistant Logs</a></li>
-                <li class="nav-item"><a class="nav-link" th:href="@{/account/password}">Change Password</a></li>
-                <li class="nav-item">
-                    <form th:action="@{/logout}" method="post" class="d-inline">
-                        <button type="submit" class="nav-link btn btn-link border-0 bg-transparent" style="text-decoration:none;">Logout</button>
-                    </form>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
+<nav th:replace="~{fragments/layout :: nav(activePage='reports')}"></nav>
 
-<main class="container py-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mb-0">Sales Report</h1>
+<main class="uk-container uk-margin-top">
+    <div class="uk-flex uk-flex-between uk-margin-bottom">
+        <h1 class="uk-h2 uk-margin-remove">Sales Report</h1>
     </div>
 
     <!-- Date range filter -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" action="/reports" class="row g-3 align-items-end">
-                <div class="col-auto">
-                    <span class="fw-bold me-2">Quick:</span>
-                    <a th:href="@{/reports(preset='today')}" class="btn btn-sm"
-                       th:classappend="${selectedPreset == 'today'} ? 'btn-primary' : 'btn-outline-primary'">Today</a>
-                    <a th:href="@{/reports(preset='week')}" class="btn btn-sm"
-                       th:classappend="${selectedPreset == 'week'} ? 'btn-primary' : 'btn-outline-primary'">This Week</a>
-                    <a th:href="@{/reports(preset='month')}" class="btn btn-sm"
-                       th:classappend="${selectedPreset == 'month'} ? 'btn-primary' : 'btn-outline-primary'">This Month</a>
-                    <a th:href="@{/reports(preset='all')}" class="btn btn-sm"
-                       th:classappend="${selectedPreset == 'all'} ? 'btn-primary' : 'btn-outline-primary'">All Time</a>
-                </div>
-                <div class="col-auto">
-                    <label for="from" class="form-label visually-hidden">From</label>
-                    <input type="date" id="from" name="from" class="form-control form-control-sm"
-                           th:value="${customFrom}" placeholder="From">
-                </div>
-                <div class="col-auto">
-                    <label for="to" class="form-label visually-hidden">To</label>
-                    <input type="date" id="to" name="to" class="form-control form-control-sm"
-                           th:value="${customTo}" placeholder="To">
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                </div>
-            </form>
-        </div>
+    <div class="uk-card uk-card-default uk-card-body uk-margin-bottom">
+        <form method="get" action="/reports" class="uk-grid-small" uk-grid>
+            <div class="uk-width-auto">
+                <span class="uk-text-bold uk-margin-small-right">Quick:</span>
+                <a th:href="@{/reports(preset='today')}" class="uk-button uk-button-small"
+                   th:classappend="${selectedPreset == 'today'} ? 'uk-button-primary' : 'uk-button-default'">Today</a>
+                <a th:href="@{/reports(preset='week')}" class="uk-button uk-button-small"
+                   th:classappend="${selectedPreset == 'week'} ? 'uk-button-primary' : 'uk-button-default'">This Week</a>
+                <a th:href="@{/reports(preset='month')}" class="uk-button uk-button-small"
+                   th:classappend="${selectedPreset == 'month'} ? 'uk-button-primary' : 'uk-button-default'">This Month</a>
+                <a th:href="@{/reports(preset='all')}" class="uk-button uk-button-small"
+                   th:classappend="${selectedPreset == 'all'} ? 'uk-button-primary' : 'uk-button-default'">All Time</a>
+            </div>
+            <div class="uk-width-auto">
+                <label for="from" class="uk-form-label uk-invisible">From</label>
+                <input type="date" id="from" name="from" class="uk-input uk-form-small"
+                       th:value="${customFrom}" placeholder="From">
+            </div>
+            <div class="uk-width-auto">
+                <label for="to" class="uk-form-label uk-invisible">To</label>
+                <input type="date" id="to" name="to" class="uk-input uk-form-small"
+                       th:value="${customTo}" placeholder="To">
+            </div>
+            <div class="uk-width-auto uk-flex uk-flex-bottom">
+                <button type="submit" class="uk-button uk-button-primary uk-button-small">Apply</button>
+            </div>
+        </form>
     </div>
 
     <!-- Summary cards -->
-    <div class="row g-4 mb-4">
-        <div class="col-md-6">
-            <div class="card text-bg-primary">
-                <div class="card-body">
-                    <h5 class="card-title">Total Sales</h5>
-                    <p class="card-text display-6" th:text="${#numbers.formatDecimal(report.totalSales, 1, 2)}">0.00</p>
-                </div>
+    <div class="uk-child-width-1-2@m uk-grid-medium uk-margin-bottom" uk-grid>
+        <div>
+            <div class="uk-card uk-card-primary uk-card-body">
+                <h5 class="uk-card-title">Total Sales</h5>
+                <p class="uk-text-large uk-margin-remove-top" th:text="${#numbers.formatDecimal(report.totalSales, 1, 2)}">0.00</p>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card text-bg-success">
-                <div class="card-body">
-                    <h5 class="card-title">Total Orders</h5>
-                    <p class="card-text display-6" th:text="${report.orderCount}">0</p>
-                </div>
+        <div>
+            <div class="uk-card uk-card-secondary uk-card-body">
+                <h5 class="uk-card-title">Total Orders</h5>
+                <p class="uk-text-large uk-margin-remove-top" th:text="${report.orderCount}">0</p>
             </div>
         </div>
     </div>
 
     <!-- Date range caption -->
-    <p class="text-muted small mb-4">
+    <p class="uk-text-muted uk-text-small uk-margin-bottom">
         Showing data from
         <strong th:text="${#temporals.format(report.from, 'yyyy-MM-dd HH:mm')}">2026-07-23 00:00</strong>
         to
@@ -100,9 +70,9 @@
     </p>
 
     <!-- Top 5 items -->
-    <h2 class="h4 mb-3">Top Selling Items</h2>
-    <div class="table-responsive">
-        <table class="table table-striped align-middle">
+    <h2 class="uk-h4">Top Selling Items</h2>
+    <div class="uk-overflow-auto">
+        <table class="uk-table uk-table-striped uk-table-middle">
             <thead>
             <tr>
                 <th>#</th>
@@ -112,7 +82,7 @@
             </thead>
             <tbody>
             <tr th:if="${#lists.isEmpty(report.topItems)}">
-                <td colspan="3" class="text-center text-muted py-4">No sales data for this period.</td>
+                <td colspan="3" class="uk-text-center uk-text-muted">No sales data for this period.</td>
             </tr>
             <tr th:each="item, stat : ${report.topItems}">
                 <td th:text="${stat.count}">1</td>
@@ -124,24 +94,6 @@
     </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Assistant chat widget (authenticated users only) -->
-<div sec:authorize="isAuthenticated()" id="assistant-chat-widget">
-    <div id="assistant-chat-panel">
-        <div id="assistant-chat-header">
-            <span>AI Assistant</span>
-            <button id="assistant-chat-close" aria-label="Close">&times;</button>
-        </div>
-        <div id="assistant-chat-messages"></div>
-        <div id="assistant-chat-input-area">
-            <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
-            <button id="assistant-chat-send" aria-label="Send">&uarr;</button>
-        </div>
-    </div>
-    <button id="assistant-chat-bubble" aria-label="Open assistant chat">&#x1F4AC;</button>
-</div>
-<link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
-<script th:src="@{/js/assistant-chat.js}"></script>
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
 </body>
 </html>
