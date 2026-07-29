@@ -17,6 +17,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.cafeerp.assistant.AssistantService.AssistantReply;
@@ -191,6 +192,41 @@ class AssistantControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Hello\"}"))
                 .andExpect(status().isOk());
+    }
+
+    // -------------------------------------------------------
+    //  CSRF exemption: /assistant/chat must work without CSRF token
+    // -------------------------------------------------------
+
+    @Test
+    @WithMockUser(username = "staff1", roles = "STAFF")
+    void chat_withoutCsrf_whenStaff_shouldNotBeForbidden() throws Exception {
+        when(userRepository.findByUsername("staff1")).thenReturn(Optional.of(staffUser));
+        when(assistantService.processMessage(any(), anyString()))
+                .thenReturn(new AssistantReply("Hello!", List.of()));
+
+        // No .with(csrf()) — the exemption must allow this through
+        mockMvc.perform(post("/assistant/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Hi\"}"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+
+    @Test
+    void chat_whenUnauthenticated_shouldRedirectToLogin() throws Exception {
+        // No @WithMockUser and no .with(csrf()) — should be rejected by auth, not CSRF
+        mockMvc.perform(post("/assistant/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Hi\"}"))
+                .andExpect(MockMvcResultMatchers.status().is3xxRedirection());
+    }
+
+    @Test
+    @WithMockUser(roles = "STAFF")
+    void logout_withoutCsrf_shouldStillBeForbidden() throws Exception {
+        // Other POST endpoints must still have CSRF protection
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/logout"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
     }
 
     // -------------------------------------------------------
