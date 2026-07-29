@@ -175,7 +175,7 @@ class AssistantServiceTest {
     }
 
     // ---------------------------------------------------------------
-    //  Multi-provider failover (Groq → Cerebras) for unmatched queries
+    //  Multi-provider failover (Groq → Gemini → OpenRouter) for unmatched queries
     // ---------------------------------------------------------------
 
     @Test
@@ -184,22 +184,72 @@ class AssistantServiceTest {
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(null);
 
-        // Two providers with missing API keys (will be skipped by hasApiKey check)
+        // Three providers with missing API keys (will be skipped by hasApiKey check)
         ProviderConfig groq = new ProviderConfig();
         groq.setName("groq");
         groq.setBaseUrl("https://api.groq.com/openai/v1");
         groq.setApiKeyEnvVar("GROQ_API_KEY_NONEXISTENT");
         groq.setModel("llama-3.3-70b-versatile");
-        groq.setSupportsMinTokens(true);
+        groq.setSupportsMinTokens(false);
 
-        ProviderConfig cerebras = new ProviderConfig();
-        cerebras.setName("cerebras");
-        cerebras.setBaseUrl("https://api.cerebras.ai/v1");
-        cerebras.setApiKeyEnvVar("CEREBRAS_API_KEY_NONEXISTENT");
-        cerebras.setModel("gpt-oss-120b");
-        cerebras.setSupportsMinTokens(false);
+        ProviderConfig gemini = new ProviderConfig();
+        gemini.setName("gemini");
+        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+        gemini.setApiKeyEnvVar("GEMINI_API_KEY_NONEXISTENT");
+        gemini.setModel("gemini-flash-latest");
+        gemini.setSupportsMinTokens(false);
 
-        when(configProperties.getProviders()).thenReturn(List.of(groq, cerebras));
+        ProviderConfig openrouter = new ProviderConfig();
+        openrouter.setName("openrouter");
+        openrouter.setBaseUrl("https://openrouter.ai/api/v1/chat/completions");
+        openrouter.setApiKeyEnvVar("OPENROUTER_API_KEY_NONEXISTENT");
+        openrouter.setModel("inclusional/ling-3.0-flash:free");
+        openrouter.setSupportsMinTokens(false);
+
+        when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
+        when(fallbackHandler.unavailableMessage(Role.STAFF))
+                .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
+
+        assistantService = new AssistantService(messageRepository, toolRegistry,
+                new ObjectMapper(), configProperties, fallbackHandler);
+
+        AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
+
+        assertNotNull(reply);
+        assertTrue(reply.text().contains("temporarily unavailable"));
+        verify(fallbackHandler).unavailableMessage(Role.STAFF);
+    }
+
+    @Test
+    void providerOrder_groqMissingKey_shouldTryGeminiNext() {
+        // Tier 2 doesn't match
+        lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
+                .thenReturn(null);
+
+        // Groq has no API key (will be skipped), Gemini has no API key (will be skipped),
+        // OpenRouter has no API key (will be skipped) — all fail, should hit unavailable
+        ProviderConfig groq = new ProviderConfig();
+        groq.setName("groq");
+        groq.setBaseUrl("https://api.groq.com/openai/v1");
+        groq.setApiKeyEnvVar("GROQ_API_KEY_NONEXISTENT");
+        groq.setModel("llama-3.3-70b-versatile");
+        groq.setSupportsMinTokens(false);
+
+        ProviderConfig gemini = new ProviderConfig();
+        gemini.setName("gemini");
+        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+        gemini.setApiKeyEnvVar("GEMINI_API_KEY_NONEXISTENT");
+        gemini.setModel("gemini-flash-latest");
+        gemini.setSupportsMinTokens(false);
+
+        ProviderConfig openrouter = new ProviderConfig();
+        openrouter.setName("openrouter");
+        openrouter.setBaseUrl("https://openrouter.ai/api/v1/chat/completions");
+        openrouter.setApiKeyEnvVar("OPENROUTER_API_KEY_NONEXISTENT");
+        openrouter.setModel("inclusional/ling-3.0-flash:free");
+        openrouter.setSupportsMinTokens(false);
+
+        when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
         when(fallbackHandler.unavailableMessage(Role.STAFF))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
