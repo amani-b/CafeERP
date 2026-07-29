@@ -69,7 +69,7 @@ public class AssistantService {
      *   <li>Persist the user's message</li>
      *   <li>Try Tier 2 deterministic pattern-matching first — if a known pattern
      *       matches, answer immediately without calling any AI provider</li>
-     *   <li>If no Tier 2 pattern matched, fall through to the Groq → Cerebras
+     *   <li>If no Tier 2 pattern matched, fall through to the Groq → Gemini → OpenRouter
      *       provider chain for genuine natural-language understanding</li>
      *   <li>If every provider fails, return a graceful "unavailable" message
      *       that lists what the user CAN ask about directly</li>
