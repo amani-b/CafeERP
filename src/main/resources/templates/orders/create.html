@@ -4,64 +4,40 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>New Order - Cafe ERP</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" th:href="@{/}">Cafe ERP</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mainNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" th:href="@{/}">Dashboard</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/categories}">Categories</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/menu}">Menu</a></li>
-                <li class="nav-item"><a class="nav-link active" aria-current="page" th:href="@{/orders}">Orders</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/reports}">Reports</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/inventory}">Inventory</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')"><a class="nav-link" th:href="@{/admin/assistant}">Assistant Logs</a></li>
-                <li class="nav-item"><a class="nav-link" th:href="@{/account/password}">Change Password</a></li>
-                <li class="nav-item">
-                    <form th:action="@{/logout}" method="post" class="d-inline">
-                        <button type="submit" class="nav-link btn btn-link border-0 bg-transparent" style="text-decoration:none;">Logout</button>
-                    </form>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
+<nav th:replace="~{fragments/layout :: nav(activePage='orders')}"></nav>
 
-<main class="container py-5">
-    <h1 class="mb-4">New Order</h1>
+<main class="uk-container uk-margin-top">
+    <h1 class="uk-h2">New Order</h1>
 
-    <div class="alert alert-danger" role="alert" th:if="${errorMessage}" th:text="${errorMessage}">
+    <div class="uk-alert-danger" uk-alert th:if="${errorMessage}" th:text="${errorMessage}">
         Select at least one available menu item.
     </div>
 
     <form action="/orders" th:action="@{/orders}" method="post">
-        <div class="table-responsive">
-            <table class="table table-striped align-middle">
+        <div class="uk-overflow-auto">
+            <table class="uk-table uk-table-striped uk-table-middle">
                 <thead>
                 <tr>
                     <th>Menu Item</th>
                     <th>Category</th>
                     <th>Unit Price</th>
-                    <th class="w-25">Quantity</th>
+                    <th class="uk-width-1-4">Quantity</th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr th:if="${#lists.isEmpty(menuItems)}">
-                    <td colspan="4" class="text-center text-muted py-4">No available menu items.</td>
+                    <td colspan="4" class="uk-text-center uk-text-muted">No available menu items.</td>
                 </tr>
                 <tr th:each="menuItem : ${menuItems}">
                     <td th:text="${menuItem.name}">Cappuccino</td>
                     <td th:text="${menuItem.category.name}">Beverages</td>
                     <td th:text="${#numbers.formatDecimal(menuItem.price, 1, 2)}">250.00</td>
                     <td>
-                        <input type="number" min="0" value="0" class="form-control"
+                        <input type="number" min="0" value="0" class="uk-input uk-form-small uk-width-small"
                                th:name="${'quantities[' + menuItem.id + ']'}">
                     </td>
                 </tr>
@@ -69,29 +45,11 @@
             </table>
         </div>
 
-        <button type="submit" class="btn btn-primary" th:disabled="${#lists.isEmpty(menuItems)}">Create Order</button>
-        <a class="btn btn-outline-secondary" th:href="@{/orders}">Cancel</a>
+        <button type="submit" class="uk-button uk-button-primary" th:disabled="${#lists.isEmpty(menuItems)}">Create Order</button>
+        <a class="uk-button uk-button-default" th:href="@{/orders}">Cancel</a>
     </form>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Assistant chat widget (authenticated users only) -->
-<div sec:authorize="isAuthenticated()" id="assistant-chat-widget">
-    <div id="assistant-chat-panel">
-        <div id="assistant-chat-header">
-            <span>AI Assistant</span>
-            <button id="assistant-chat-close" aria-label="Close">&times;</button>
-        </div>
-        <div id="assistant-chat-messages"></div>
-        <div id="assistant-chat-input-area">
-            <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
-            <button id="assistant-chat-send" aria-label="Send">&uarr;</button>
-        </div>
-    </div>
-    <button id="assistant-chat-bubble" aria-label="Open assistant chat">&#x1F4AC;</button>
-</div>
-<link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
-<script th:src="@{/js/assistant-chat.js}"></script>
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
 </body>
 </html>
