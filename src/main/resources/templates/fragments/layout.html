@@ -16,7 +16,7 @@
 <!-- Top navigation bar fragment                                   -->
 <!-- activePage parameter controls uk-active highlighting          -->
 <!-- Rebuilt with real Franken UI v2.1.2 (Dos) classes:            -->
-<!--   uk-container, uk-nav, uk-nav-default, uk-active, uk-toggle  -->
+<!--   uk-container, uk-nav, uk-nav-default, uk-active             -->
 <!--   plus Tailwind-style utilities (flex, hidden, lg:flex, etc.) -->
 <!-- ============================================================ -->
 <nav th:fragment="nav(activePage)" class="sticky top-0 bg-background border-b">
@@ -60,53 +60,80 @@
             </li>
         </ul>
         <!-- Mobile hamburger: toggles offcanvas drawer (inline SVG since 'menu' icon absent from Franken v2.1.2) -->
-        <button class="flex lg:hidden p-2" type="button" uk-toggle="target: #mobile-nav" aria-label="Open menu">
+        <button id="mobile-nav-toggle" class="flex lg:hidden p-2" type="button" aria-label="Open menu">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
     </div>
-</nav>
 
-<!-- Mobile offcanvas navigation -->
-<div id="mobile-nav" uk-offcanvas="overlay: true; flip: true">
-    <div class="uk-offcanvas-bar">
-        <button class="absolute top-4 right-4" type="button" uk-close uk-toggle="target: #mobile-nav"></button>
-        <ul class="uk-nav uk-nav-default mt-4">
-            <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
-                <a th:href="@{/}">Dashboard</a>
-            </li>
-            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
-                <a th:href="@{/categories}">Categories</a>
-            </li>
-            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'menu'} ? 'uk-active' : ''">
-                <a th:href="@{/menu}">Menu</a>
-            </li>
-            <li sec:authorize="hasAnyRole('STAFF','ADMIN')" th:classappend="${activePage == 'orders'} ? 'uk-active' : ''">
-                <a th:href="@{/orders}">Orders</a>
-            </li>
-            <li sec:authorize="hasAnyRole('KITCHEN','ADMIN')" th:classappend="${activePage == 'kitchen'} ? 'uk-active' : ''">
-                <a th:href="@{/kitchen}">Kitchen</a>
-            </li>
-            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'reports'} ? 'uk-active' : ''">
-                <a th:href="@{/reports}">Reports</a>
-            </li>
-            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'inventory'} ? 'uk-active' : ''">
-                <a th:href="@{/inventory}">Inventory</a>
-            </li>
-            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
-                <a th:href="@{/admin/assistant}">Assistant Logs</a>
-            </li>
-            <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
-                <a th:href="@{/account/password}">Change Password</a>
-            </li>
-            <li class="uk-nav-divider"></li>
-            <li>
-                <form th:action="@{/logout}" method="post">
-                    <button type="submit" class="w-full">Logout</button>
-                </form>
-            </li>
-        </ul>
+    <!-- Mobile offcanvas navigation -->
+    <div id="mobile-nav" uk-offcanvas="overlay: true; flip: true">
+        <div class="uk-offcanvas-bar">
+            <button id="mobile-nav-close" class="absolute top-4 right-4" type="button" uk-close></button>
+            <ul class="uk-nav uk-nav-default mt-4">
+                <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
+                    <a th:href="@{/}">Dashboard</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
+                    <a th:href="@{/categories}">Categories</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'menu'} ? 'uk-active' : ''">
+                    <a th:href="@{/menu}">Menu</a>
+                </li>
+                <li sec:authorize="hasAnyRole('STAFF','ADMIN')" th:classappend="${activePage == 'orders'} ? 'uk-active' : ''">
+                    <a th:href="@{/orders}">Orders</a>
+                </li>
+                <li sec:authorize="hasAnyRole('KITCHEN','ADMIN')" th:classappend="${activePage == 'kitchen'} ? 'uk-active' : ''">
+                    <a th:href="@{/kitchen}">Kitchen</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'reports'} ? 'uk-active' : ''">
+                    <a th:href="@{/reports}">Reports</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'inventory'} ? 'uk-active' : ''">
+                    <a th:href="@{/inventory}">Inventory</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
+                    <a th:href="@{/admin/assistant}">Assistant Logs</a>
+                </li>
+                <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
+                    <a th:href="@{/account/password}">Change Password</a>
+                </li>
+                <li class="uk-nav-divider"></li>
+                <li>
+                    <form th:action="@{/logout}" method="post">
+                        <button type="submit" class="w-full">Logout</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
     </div>
-</div>
+
+    <!-- Mobile offcanvas toggle: vanilla JS since Franken UI v2.1.2 ships no uk-toggle
+         handler (the literal "uk-toggle" is absent from core.iife.js). The .uk-open
+         class on #mobile-nav drives the slide animation via the rule
+         .uk-open > .uk-offcanvas-bar { left: 0 } in franken-core.min.css. -->
+    <script>
+        (function () {
+            var drawer = document.getElementById('mobile-nav');
+            if (!drawer) return;
+            var toggle = document.getElementById('mobile-nav-toggle');
+            var closeBtn = document.getElementById('mobile-nav-close');
+
+            function open() { drawer.classList.add('uk-open'); }
+            function close() { drawer.classList.remove('uk-open'); }
+
+            if (toggle) toggle.addEventListener('click', open);
+            if (closeBtn) closeBtn.addEventListener('click', close);
+
+            // Click on the overlay background (the #mobile-nav element itself, outside
+            // .uk-offcanvas-bar) closes the drawer.
+            drawer.addEventListener('click', function (e) {
+                if (drawer.classList.contains('uk-open') && !e.target.closest('.uk-offcanvas-bar')) {
+                    close();
+                }
+            });
+        })();
+    </script>
+</nav>
 
 <!-- ============================================================ -->
 <!-- Assistant chat widget fragment                                -->
