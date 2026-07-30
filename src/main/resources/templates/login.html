@@ -6,13 +6,12 @@
     <title>Login - Cafe ERP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
 </head>
 <body>
-<nav class="uk-navbar-container" uk-navbar>
-    <div class="uk-container uk-container-expand">
-        <div class="uk-navbar-left">
-            <a class="uk-navbar-item uk-logo" th:href="@{/}">Cafe ERP</a>
-        </div>
+<nav class="uk-navbar-container sticky top-0 bg-background border-b" uk-navbar>
+    <div class="uk-container uk-container-expand flex items-center justify-between">
+        <a class="font-semibold text-lg" th:href="@{/}">Cafe ERP</a>
     </div>
 </nav>
 
