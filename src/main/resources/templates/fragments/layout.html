@@ -23,7 +23,7 @@
     <div class="uk-container uk-container-expand flex items-center justify-between">
         <a class="font-semibold text-lg" th:href="@{/}">Cafe ERP</a>
         <ul class="uk-nav uk-nav-default hidden lg:flex lg:items-center lg:gap-4">
-            <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
+            <li th:classappend="${activePage == 'dashboard' || activePage == 'home'} ? 'uk-active' : ''">
                 <a th:href="@{/}">Dashboard</a>
             </li>
             <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
@@ -70,7 +70,7 @@
         <div class="uk-offcanvas-bar">
             <button id="mobile-nav-close" class="absolute top-4 right-4" type="button" uk-close></button>
             <ul class="uk-nav uk-nav-default mt-4">
-                <li th:classappend="${activePage == 'dashboard'} ? 'uk-active' : ''">
+                <li th:classappend="${activePage == 'dashboard' || activePage == 'home'} ? 'uk-active' : ''">
                     <a th:href="@{/}">Dashboard</a>
                 </li>
                 <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'categories'} ? 'uk-active' : ''">
