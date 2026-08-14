@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Access Denied - Cafe ERP</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+</head>
+<body>
+<nav th:replace="~{fragments/layout :: nav(activePage='dashboard')}"></nav>
+
+<main class="uk-container uk-margin-top">
+    <div class="uk-flex uk-flex-center">
+        <div class="uk-width-large uk-text-center">
+            <h1 class="uk-heading-primary uk-margin-remove">403</h1>
+            <h2 class="uk-h3">Access Denied</h2>
+            <p class="uk-text-muted">You don't have permission to access this page.</p>
+            <a class="uk-button uk-button-primary" th:href="@{/}">Back to Dashboard</a>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
+</body>
+</html>
