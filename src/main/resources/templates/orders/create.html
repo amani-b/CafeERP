@@ -6,48 +6,178 @@
     <title>New Order - Cafe ERP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ─── Base ─────────────────────────────────────────────── */
+        /* All interactive/color styling lives in raw CSS because
+           Franken UI v2.1.2 utilities.min.css exposes only semantic
+           token colors (bg-background, text-foreground, etc.) and
+           no shadow/transition/transform utilities.               */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #111827;            /* gray-900 */
+        }
+
+        /* ─── Page header ──────────────────────────────────────── */
+        .dash-hero {
+            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
+            color: #fff;
+            border-radius: 1.25rem;
+        }
+
+        /* ─── Card style ───────────────────────────────────────── */
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 1.25rem;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.25s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
+        }
+
+        /* ─── Bouncy button (consistent with login/change-password) ─ */
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #111827; /* gray-900 */
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-primary:hover {
+            background-color: #374151; /* gray-700 */
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+            transition: transform 0.08s ease;
+        }
+        .btn-primary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ─── Secondary button ─────────────────────────────────── */
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #ffffff;
+            color: #111827;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #f9fafb; /* gray-50 */
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+        }
+        .btn-secondary:active {
+            transform: translateY(0) scale(0.97);
+            transition: transform 0.08s ease;
+        }
+        .btn-secondary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+
+        /* ─── Error alert ──────────────────────────────────────── */
+        .alert-error {
+            background-color: #fef2f2; /* red-50 */
+            color: #991b1b;            /* red-800 */
+            border: 1px solid #fecaca; /* red-200 */
+            border-left: 4px solid #dc2626; /* red-600 */
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+        }
+    </style>
 </head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='orders')}"></nav>
 
-<main class="uk-container uk-margin-top">
-    <h1 class="uk-h2">New Order</h1>
+<main class="uk-container max-w-7xl mx-auto px-4 py-8">
+    <!-- Page header -->
+    <section class="dash-hero p-6 sm:p-8 mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">New Order</h1>
+                <p class="text-sm opacity-50 mt-1">Select menu items and quantities to create an order.</p>
+            </div>
+        </div>
+    </section>
 
-    <div class="uk-alert-danger" uk-alert th:if="${errorMessage}" th:text="${errorMessage}">
+    <!-- Error alert -->
+    <div class="alert-error mb-8" th:if="${errorMessage}" th:text="${errorMessage}">
         Select at least one available menu item.
     </div>
 
-    <form action="/orders" th:action="@{/orders}" method="post">
-        <div class="uk-overflow-auto">
-            <table class="uk-table uk-table-striped uk-table-middle">
-                <thead>
-                <tr>
-                    <th>Menu Item</th>
-                    <th>Category</th>
-                    <th>Unit Price</th>
-                    <th class="uk-width-1-4">Quantity</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:if="${#lists.isEmpty(menuItems)}">
-                    <td colspan="4" class="uk-text-center uk-text-muted">No available menu items.</td>
-                </tr>
-                <tr th:each="menuItem : ${menuItems}">
-                    <td th:text="${menuItem.name}">Cappuccino</td>
-                    <td th:text="${menuItem.category.name}">Beverages</td>
-                    <td th:text="${#numbers.formatDecimal(menuItem.price, 1, 2)}">250.00</td>
-                    <td>
-                        <input type="number" min="0" value="0" class="uk-input uk-form-small uk-width-small"
-                               th:name="${'quantities[' + menuItem.id + ']'}">
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
+    <!-- Order form -->
+    <section class="stat-card p-6 sm:p-8">
+        <form action="/orders" th:action="@{/orders}" method="post">
+            <div class="uk-overflow-auto">
+                <table class="uk-table uk-table-middle">
+                    <thead>
+                    <tr>
+                        <th>Menu Item</th>
+                        <th>Category</th>
+                        <th>Unit Price</th>
+                        <th class="uk-width-1-4">Quantity</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:if="${#lists.isEmpty(menuItems)}">
+                        <td colspan="4" class="uk-text-center uk-text-muted">No available menu items.</td>
+                    </tr>
+                    <tr th:each="menuItem : ${menuItems}">
+                        <td th:text="${menuItem.name}">Cappuccino</td>
+                        <td th:text="${menuItem.category.name}">Beverages</td>
+                        <td th:text="${#numbers.formatDecimal(menuItem.price, 1, 2)}">250.00</td>
+                        <td>
+                            <input type="number" min="0" value="0" class="uk-input uk-form-small uk-width-small"
+                                   th:name="${'quantities[' + menuItem.id + ']'}">
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
 
-        <button type="submit" class="uk-button uk-button-primary" th:disabled="${#lists.isEmpty(menuItems)}">Create Order</button>
-        <a class="uk-button uk-button-default" th:href="@{/orders}">Cancel</a>
-    </form>
+            <div class="flex flex-wrap items-center gap-3 mt-6">
+                <button type="submit" class="btn-primary px-5 py-3 text-sm font-semibold"
+                        th:disabled="${#lists.isEmpty(menuItems)}">Create Order</button>
+                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/orders}">Cancel</a>
+            </div>
+        </form>
+    </section>
 </main>
 
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
