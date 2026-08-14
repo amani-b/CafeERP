@@ -145,7 +145,8 @@
             <div>
                 <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Dashboard</h1>
-                <p class="text-sm opacity-50 mt-1">A quick snapshot of your cafe's operations.</p>
+                <p class="text-sm opacity-50 mt-1" sec:authorize="hasRole('ADMIN')">A quick snapshot of your cafe's operations.</p>
+                <p class="text-sm opacity-50 mt-1" sec:authorize="!hasRole('ADMIN')">Here's what's happening on your shift.</p>
             </div>
             <div class="flex items-center gap-3">
                 <span class="pill pill-ok">
@@ -213,6 +214,7 @@
                         <p class="text-sm text-muted-foreground">Inventory Status</p>
                         <p class="text-xl font-extrabold" sec:authorize="hasRole('ADMIN')" th:text="${lowStockCount}">0</p>
                         <p class="text-xs text-muted-foreground" sec:authorize="hasRole('ADMIN')">items low on stock</p>
+                        <p class="text-xl font-extrabold" sec:authorize="!hasRole('ADMIN')">Check stock levels</p>
                     </div>
                 </div>
             </div>
