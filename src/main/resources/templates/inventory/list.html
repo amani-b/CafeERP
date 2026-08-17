@@ -169,6 +169,12 @@
         .edit-form-row {
             background-color: #f9fafb; /* gray-50 */
         }
+        /* Ensure the hidden attribute truly hides toggled divs even
+           when an inner .uk-card sets display:block (which otherwise
+           overrides the UA's [hidden] { display:none }). */
+        [hidden] {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
