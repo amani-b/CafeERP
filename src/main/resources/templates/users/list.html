@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>New Category - Cafe ERP</title>
+    <title>Users - Cafe ERP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
     <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
@@ -43,7 +43,7 @@
             box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
         }
 
-        /* ─── Bouncy button (consistent with orders) ───────────── */
+        /* ─── Bouncy button (consistent with orders/menu/inventory) ─ */
         .btn-primary {
             display: inline-flex;
             align-items: center;
@@ -105,61 +105,91 @@
             box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
         }
 
-        /* ─── Form field label ─────────────────────────────────── */
-        .form-label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #374151; /* gray-700 */
-            margin-bottom: 0.375rem;
-        }
-        .field-error {
-            margin-top: 0.375rem;
+        /* ─── Status pill ─────────────────────────────────────── */
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
             font-size: 0.75rem;
-            color: #dc2626; /* red-600 */
+            font-weight: 600;
+        }
+        .pill-warn {
+            background-color: #fef3c7; /* yellow-100 */
+            color: #92400e;            /* yellow-800 */
+            border: 1px solid #fde68a; /* yellow-200 */
+        }
+        .pill-ok {
+            background-color: #dcfce7; /* green-100 */
+            color: #166534;            /* green-800 */
+            border: 1px solid #bbf7d0; /* green-200 */
+        }
+        .pill-muted {
+            background-color: #f3f4f6; /* gray-100 */
+            color: #374151;            /* gray-700 */
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .pill-admin {
+            background-color: #dbeafe; /* blue-100 */
+            color: #1e40af;            /* blue-800 */
+            border: 1px solid #bfdbfe; /* blue-200 */
         }
     </style>
 </head>
 <body>
-<nav th:replace="~{fragments/layout :: nav(activePage='categories')}"></nav>
+<nav th:replace="~{fragments/layout :: nav(activePage='users')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Page header -->
     <section class="dash-hero p-6 sm:p-8 mb-8">
-        <div>
-            <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
-            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">New Category</h1>
-            <p class="text-sm opacity-50 mt-1">Add a new product category to the café.</p>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Users</h1>
+                <p class="text-sm opacity-50 mt-1">Manage user accounts and role assignments.</p>
+            </div>
+            <a th:href="@{/users/new}" class="btn-primary px-5 py-3 text-sm font-semibold">
+                New User
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </a>
         </div>
     </section>
 
-    <!-- Create form -->
+    <!-- Users table -->
     <section class="stat-card p-6 sm:p-8">
-        <form th:action="@{/categories}" th:object="${category}" method="post" class="uk-width-1-2@m">
-            <div class="mb-4">
-                <label for="name" class="form-label">Name</label>
-                <input type="text" id="name" class="uk-input w-full" th:field="*{name}" placeholder="e.g. Beverages"
-                       th:classappend="${#fields.hasErrors('name')} ? 'uk-form-danger'">
-                <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name is required</div>
-            </div>
-
-            <div class="mb-4">
-                <label for="description" class="form-label">Description</label>
-                <textarea id="description" class="uk-textarea w-full" rows="3" th:field="*{description}" placeholder="Optional description"></textarea>
-            </div>
-
-            <div class="mb-6">
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" class="uk-checkbox" th:field="*{active}">
-                    <span class="text-sm">Active</span>
-                </label>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="btn-primary px-5 py-3 text-sm font-semibold">Save</button>
-                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/categories}">Cancel</a>
-            </div>
-        </form>
+        <div class="uk-overflow-auto">
+            <table class="uk-table uk-table-middle">
+                <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Password Status</th>
+                    <th class="uk-text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(users)}">
+                    <td colspan="4" class="uk-text-center uk-text-muted">No users yet.</td>
+                </tr>
+                <tr th:each="user : ${users}">
+                    <td class="font-semibold" th:text="${user.username}">admin</td>
+                    <td>
+                        <span class="pill pill-admin" th:if="${user.role.name() == 'ADMIN'}">Admin</span>
+                        <span class="pill pill-ok" th:if="${user.role.name() == 'STAFF'}">Staff</span>
+                        <span class="pill pill-muted" th:if="${user.role.name() == 'KITCHEN'}">Kitchen</span>
+                    </td>
+                    <td>
+                        <span class="pill pill-warn" th:if="${user.mustChangePassword}">Must change</span>
+                        <span class="pill pill-ok" th:unless="${user.mustChangePassword}">Set</span>
+                    </td>
+                    <td class="uk-text-right">
+                        <a class="btn-secondary px-4 py-2 text-sm font-semibold" th:href="@{/users/edit/{id}(id=${user.id})}">Edit</a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>New Category - Cafe ERP</title>
+    <title>New User - Cafe ERP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
     <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
@@ -121,43 +121,57 @@
     </style>
 </head>
 <body>
-<nav th:replace="~{fragments/layout :: nav(activePage='categories')}"></nav>
+<nav th:replace="~{fragments/layout :: nav(activePage='users')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Page header -->
     <section class="dash-hero p-6 sm:p-8 mb-8">
         <div>
             <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
-            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">New Category</h1>
-            <p class="text-sm opacity-50 mt-1">Add a new product category to the café.</p>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">New User</h1>
+            <p class="text-sm opacity-50 mt-1">Create a new user account and assign a role.</p>
         </div>
     </section>
 
     <!-- Create form -->
     <section class="stat-card p-6 sm:p-8">
-        <form th:action="@{/categories}" th:object="${category}" method="post" class="uk-width-1-2@m">
+        <form th:action="@{/users}" th:object="${user}" method="post" class="uk-width-1-2@m">
             <div class="mb-4">
-                <label for="name" class="form-label">Name</label>
-                <input type="text" id="name" class="uk-input w-full" th:field="*{name}" placeholder="e.g. Beverages"
-                       th:classappend="${#fields.hasErrors('name')} ? 'uk-form-danger'">
-                <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name is required</div>
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" class="uk-input w-full" th:field="*{username}" placeholder="e.g. barista"
+                       th:classappend="${#fields.hasErrors('username')} ? 'uk-form-danger'">
+                <div class="field-error" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">Username is required</div>
             </div>
 
             <div class="mb-4">
-                <label for="description" class="form-label">Description</label>
-                <textarea id="description" class="uk-textarea w-full" rows="3" th:field="*{description}" placeholder="Optional description"></textarea>
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" class="uk-input w-full" th:field="*{password}" placeholder="At least 8 characters"
+                       th:classappend="${#fields.hasErrors('password')} ? 'uk-form-danger'">
+                <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">Password must be at least 8 characters long</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="role" class="form-label">Role</label>
+                <select id="role" class="uk-select w-full" th:field="*{role}"
+                        th:classappend="${#fields.hasErrors('role')} ? 'uk-form-danger'">
+                    <option value="">Select role</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="STAFF">Staff</option>
+                    <option value="KITCHEN">Kitchen</option>
+                </select>
+                <div class="field-error" th:if="${#fields.hasErrors('role')}" th:errors="*{role}">Role is required</div>
             </div>
 
             <div class="mb-6">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" class="uk-checkbox" th:field="*{active}">
-                    <span class="text-sm">Active</span>
+                    <input type="checkbox" class="uk-checkbox" th:field="*{mustChangePassword}">
+                    <span class="text-sm">Force password change on first login</span>
                 </label>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="btn-primary px-5 py-3 text-sm font-semibold">Save</button>
-                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/categories}">Cancel</a>
+                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/users}">Cancel</a>
             </div>
         </form>
     </section>
