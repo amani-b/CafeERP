@@ -240,7 +240,7 @@
                         <td th:text="${inv.lastUpdatedAt != null ? #temporals.format(inv.lastUpdatedAt, 'yyyy-MM-dd HH:mm') : '—'}" class="text-sm">2026-07-14 18:00</td>
                         <td class="uk-text-right">
                             <button class="btn-secondary px-4 py-2 text-sm font-semibold" type="button"
-                                    data-edit-toggle th:attr="data-edit-target='edit-${inv.id}'">
+                                    data-edit-toggle th:attr="data-edit-target='edit-' + ${inv.id}">
                                 Edit
                             </button>
                         </td>
