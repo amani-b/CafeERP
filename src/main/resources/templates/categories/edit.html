@@ -6,40 +6,161 @@
     <title>Edit Category - Cafe ERP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ─── Base ─────────────────────────────────────────────── */
+        /* All interactive/color styling lives in raw CSS because
+           Franken UI v2.1.2 utilities.min.css exposes only semantic
+           token colors (bg-background, text-foreground, etc.) and
+           no shadow/transition/transform utilities.               */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #111827;            /* gray-900 */
+        }
+
+        /* ─── Page header ──────────────────────────────────────── */
+        .dash-hero {
+            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
+            color: #fff;
+            border-radius: 1.25rem;
+        }
+
+        /* ─── Card style ───────────────────────────────────────── */
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 1.25rem;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.25s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
+        }
+
+        /* ─── Bouncy button (consistent with orders) ───────────── */
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #111827; /* gray-900 */
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-primary:hover {
+            background-color: #374151; /* gray-700 */
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+            transition: transform 0.08s ease;
+        }
+        .btn-primary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+
+        /* ─── Secondary button ─────────────────────────────────── */
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #ffffff;
+            color: #111827;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #f9fafb; /* gray-50 */
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+        }
+        .btn-secondary:active {
+            transform: translateY(0) scale(0.97);
+            transition: transform 0.08s ease;
+        }
+        .btn-secondary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+
+        /* ─── Form field label ─────────────────────────────────── */
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151; /* gray-700 */
+            margin-bottom: 0.375rem;
+        }
+        .field-error {
+            margin-top: 0.375rem;
+            font-size: 0.75rem;
+            color: #dc2626; /* red-600 */
+        }
+    </style>
 </head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='categories')}"></nav>
 
-<main class="uk-container uk-margin-top">
-    <h1 class="uk-h2">Edit Category</h1>
+<main class="uk-container max-w-7xl mx-auto px-4 py-8">
+    <!-- Page header -->
+    <section class="dash-hero p-6 sm:p-8 mb-8">
+        <div>
+            <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Edit Category</h1>
+            <p class="text-sm opacity-50 mt-1">Update the details for this product category.</p>
+        </div>
+    </section>
 
-    <form th:action="@{/categories/update/{id}(id=${category.id})}" th:object="${category}" method="post" class="uk-width-1-2@m">
-        <div class="uk-margin">
-            <label for="name" class="uk-form-label">Name</label>
-            <div class="uk-form-controls">
-                <input type="text" id="name" class="uk-input" th:field="*{name}"
+    <!-- Edit form -->
+    <section class="stat-card p-6 sm:p-8">
+        <form th:action="@{/categories/update/{id}(id=${category.id})}" th:object="${category}" method="post" class="uk-width-1-2@m">
+            <div class="mb-4">
+                <label for="name" class="form-label">Name</label>
+                <input type="text" id="name" class="uk-input w-full" th:field="*{name}" placeholder="e.g. Beverages"
                        th:classappend="${#fields.hasErrors('name')} ? 'uk-form-danger'">
-                <div class="uk-text-danger uk-text-small" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name is required</div>
+                <div class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name is required</div>
             </div>
-        </div>
 
-        <div class="uk-margin">
-            <label for="description" class="uk-form-label">Description</label>
-            <div class="uk-form-controls">
-                <textarea id="description" class="uk-textarea" rows="3" th:field="*{description}"></textarea>
+            <div class="mb-4">
+                <label for="description" class="form-label">Description</label>
+                <textarea id="description" class="uk-textarea w-full" rows="3" th:field="*{description}" placeholder="Optional description"></textarea>
             </div>
-        </div>
 
-        <div class="uk-margin">
-            <label>
-                <input type="checkbox" class="uk-checkbox" th:field="*{active}">
-                <span class="uk-margin-small-left">Active</span>
-            </label>
-        </div>
+            <div class="mb-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" class="uk-checkbox" th:field="*{active}">
+                    <span class="text-sm">Active</span>
+                </label>
+            </div>
 
-        <button type="submit" class="uk-button uk-button-primary">Update</button>
-        <a class="uk-button uk-button-default" th:href="@{/categories}">Cancel</a>
-    </form>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="btn-primary px-5 py-3 text-sm font-semibold">Update</button>
+                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/categories}">Cancel</a>
+            </div>
+        </form>
+    </section>
 </main>
 
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
