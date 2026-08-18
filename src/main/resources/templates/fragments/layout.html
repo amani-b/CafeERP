@@ -47,6 +47,9 @@
             <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
                 <a th:href="@{/admin/assistant}">Assistant Logs</a>
             </li>
+            <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'users'} ? 'uk-active' : ''">
+                <a th:href="@{/users}">Users</a>
+            </li>
             <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
                 <a th:href="@{/account/password}">Change Password</a>
             </li>
@@ -93,6 +96,9 @@
                 </li>
                 <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'uk-active' : ''">
                     <a th:href="@{/admin/assistant}">Assistant Logs</a>
+                </li>
+                <li sec:authorize="hasRole('ADMIN')" th:classappend="${activePage == 'users'} ? 'uk-active' : ''">
+                    <a th:href="@{/users}">Users</a>
                 </li>
                 <li th:classappend="${activePage == 'account'} ? 'uk-active' : ''">
                     <a th:href="@{/account/password}">Change Password</a>

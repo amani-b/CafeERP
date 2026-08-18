@@ -1,6 +1,7 @@
 package com.cafeerp.user;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,5 +61,46 @@ public class UserService {
         userRepository.save(user);
 
         log.info("Password changed for user '{}' at {}", username, Instant.now());
+    }
+
+    // ---------------------------------------------------------------
+    //  User management (admin)
+    // ---------------------------------------------------------------
+
+    public List<User> findAll() {
+        return userRepository.findAll();
+    }
+
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("User not found: id={}", id);
+                    return new IllegalArgumentException("User not found");
+                });
+    }
+
+    public boolean usernameExists(String username) {
+        return userRepository.findByUsername(username).isPresent();
+    }
+
+    @Transactional
+    public User createUser(User user) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User saved = userRepository.save(user);
+        log.info("User created: id={}, username={}, role={}",
+                saved.getId(), saved.getUsername(), saved.getRole());
+        return saved;
+    }
+
+    @Transactional
+    public User updateUser(User user) {
+        User existing = findById(user.getId());
+        existing.setUsername(user.getUsername());
+        existing.setRole(user.getRole());
+        existing.setMustChangePassword(user.isMustChangePassword());
+        User saved = userRepository.save(existing);
+        log.info("User updated: id={}, username={}, role={}",
+                saved.getId(), saved.getUsername(), saved.getRole());
+        return saved;
     }
 }
