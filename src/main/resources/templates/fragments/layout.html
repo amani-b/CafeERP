@@ -143,21 +143,28 @@
 
 <!-- ============================================================ -->
 <!-- Assistant chat widget fragment                                -->
-<!-- Byte-for-byte identical to the original markup                -->
+<!-- Restyled chrome only — all th:*/sec:* bindings, element IDs,  -->
+<!-- and JS hooks (assistant-chat.js) are byte-for-byte unchanged. -->
 <!-- ============================================================ -->
 <div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget">
     <div id="assistant-chat-panel">
         <div id="assistant-chat-header">
             <span>AI Assistant</span>
-            <button id="assistant-chat-close" aria-label="Close">&times;</button>
+            <button id="assistant-chat-close" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
         </div>
         <div id="assistant-chat-messages"></div>
         <div id="assistant-chat-input-area">
             <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
-            <button id="assistant-chat-send" aria-label="Send">&uarr;</button>
+            <button id="assistant-chat-send" aria-label="Send">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+            </button>
         </div>
     </div>
-    <button id="assistant-chat-bubble" aria-label="Open assistant chat">&#x1F4AC;</button>
+    <button id="assistant-chat-bubble" aria-label="Open assistant chat">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </button>
 </div>
 <link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
 <script th:src="@{/js/assistant-chat.js}"></script>
