@@ -1,43 +1,205 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<head th:insert="~{fragments/layout :: head}">
     <title>Assistant Logs - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ─── Base ─────────────────────────────────────────────── */
+        /* All interactive/color styling lives in raw CSS because
+           Franken UI v2.1.2 utilities.min.css exposes only semantic
+           token colors (bg-background, text-foreground, etc.) and
+           no shadow/transition/transform utilities.               */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #111827;            /* gray-900 */
+        }
+
+        /* ─── Page header ──────────────────────────────────────── */
+        .dash-hero {
+            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
+            color: #fff;
+            border-radius: 1.25rem;
+        }
+
+        /* ─── Card style ───────────────────────────────────────── */
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 1.25rem;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.25s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
+        }
+
+        /* ─── Bouncy button (consistent with reports/users) ─────── */
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #111827; /* gray-900 */
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-primary:hover {
+            background-color: #374151; /* gray-700 */
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary:active {
+            transform: translateY(0) scale(0.95);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+            transition: transform 0.08s ease;
+        }
+        .btn-primary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+
+        /* ─── Secondary button ─────────────────────────────────── */
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: #ffffff;
+            color: #111827;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            cursor: pointer;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background-color 0.25s ease,
+                        box-shadow 0.25s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #f9fafb; /* gray-50 */
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+        }
+        .btn-secondary:active {
+            transform: translateY(0) scale(0.97);
+            transition: transform 0.08s ease;
+        }
+        .btn-secondary:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
+        }
+
+        /* ─── Status pill ─────────────────────────────────────── */
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .pill-muted {
+            background-color: #f3f4f6; /* gray-100 */
+            color: #374151;            /* gray-700 */
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .pill-admin {
+            background-color: #dbeafe; /* blue-100 */
+            color: #1e40af;            /* blue-800 */
+            border: 1px solid #bfdbfe; /* blue-200 */
+        }
+        .pill-ok {
+            background-color: #dcfce7; /* green-100 */
+            color: #166534;            /* green-800 */
+            border: 1px solid #bbf7d0; /* green-200 */
+        }
+
+        /* ─── Thread preview block ─────────────────────────────── */
+        .preview-block {
+            border-left: 3px solid #e5e7eb; /* gray-200 */
+            transition: border-color 0.2s ease;
+        }
+        .preview-block:hover {
+            border-left-color: #111827; /* gray-900 */
+        }
+    </style>
 </head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='assistant-admin')}"></nav>
 
-<main class="uk-container uk-margin-top">
-    <h1 class="uk-h2">Assistant Chat Logs</h1>
+<main class="uk-container max-w-7xl mx-auto px-4 py-8">
+    <!-- Page header -->
+    <section class="dash-hero p-6 sm:p-8 mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Assistant Chat Logs</h1>
+                <p class="text-sm opacity-50 mt-1">Review conversations staff have had with the AI assistant.</p>
+            </div>
+            <span class="pill pill-admin">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Admin only
+            </span>
+        </div>
+    </section>
 
-    <div class="uk-overflow-auto">
-        <table class="uk-table uk-table-striped uk-table-middle">
-            <thead>
-            <tr>
-                <th>User ID</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:if="${#lists.isEmpty(users)}">
-                <td colspan="4" class="uk-text-center uk-text-muted">No users have used the assistant yet.</td>
-            </tr>
-            <tr th:each="u : ${users}">
-                <td th:text="${u.id}">1</td>
-                <td th:text="${u.username}">staff1</td>
-                <td th:text="${u.role}">STAFF</td>
-                <td>
-                    <a class="uk-button uk-button-default uk-button-small" th:href="@{/admin/assistant/{id}(id=${u.id})}">View Thread</a>
-                </td>
-            </tr>
-            </tbody>
-        </table>
-    </div>
+    <!-- Assistant logs table -->
+    <section class="stat-card p-6 sm:p-8">
+        <!-- Horizontal scroll on small screens: matches the proven overflow pattern
+             used by projects/Orders/Menu/Inventory so wide tables never break at mobile widths. -->
+        <div class="uk-overflow-auto">
+            <table class="uk-table uk-table-middle">
+                <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th class="uk-text-right">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(users)}">
+                    <td colspan="4" class="uk-text-center uk-text-muted py-8">
+                        <p class="text-lg font-semibold text-foreground-500">No conversations yet</p>
+                        <p class="text-sm">No users have used the assistant yet.</p>
+                    </td>
+                </tr>
+                <tr th:each="u : ${users}">
+                    <td class="text-sm font-medium text-muted-foreground" th:text="${u.id}">1</td>
+                    <td class="preview-block pl-3">
+                        <p class="font-semibold" th:text="${u.username}">staff1</p>
+                    </td>
+                    <td>
+                        <span class="pill pill-admin" th:if="${u.role.name() == 'ADMIN'}">Admin</span>
+                        <span class="pill pill-ok" th:if="${u.role.name() == 'STAFF'}">Staff</span>
+                        <span class="pill pill-muted" th:if="${u.role.name() == 'KITCHEN'}">Kitchen</span>
+                    </td>
+                    <td class="uk-text-right">
+                        <a class="btn-secondary px-4 py-2 text-sm font-semibold"
+                           th:href="@{/admin/assistant/{id}(id=${u.id})}">
+                            View Thread
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        </a>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </main>
+
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
 </body>
 </html>
