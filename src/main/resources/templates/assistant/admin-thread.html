@@ -1,191 +1,36 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head th:insert="~{fragments/layout :: head}">
-    <title>Assistant Thread - Cafe ERP</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Page header ──────────────────────────────────────── */
-        .dash-hero {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
-            color: #fff;
-            border-radius: 1.25rem;
-        }
-
-        /* ─── Card style ───────────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        /* ─── Secondary button (proven from list page) ─────────── */
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #f9fafb; /* gray-50 */
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-        }
-        .btn-secondary:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Role pill (proven from list page) ────────────────── */
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .pill-admin {
-            background-color: #dbeafe; /* blue-100 */
-            color: #1e40af;            /* blue-800 */
-            border: 1px solid #bfdbfe; /* blue-200 */
-        }
-        .pill-ok {
-            background-color: #dcfce7; /* green-100 */
-            color: #166534;            /* green-800 */
-            border: 1px solid #bbf7d0; /* green-200 */
-        }
-
-        /* ─── Speaker avatar ───────────────────────────────────── */
-        .avatar {
-            flex-shrink: 0;
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 9999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-        }
-        .avatar-user {
-            background-color: #dcfce7; /* green-100 */
-            color: #166534;            /* green-800 */
-            border: 1px solid #bbf7d0; /* green-200 */
-        }
-        .avatar-assistant {
-            background-color: #dbeafe; /* blue-100 */
-            color: #1e40af;            /* blue-800 */
-            border: 1px solid #bfdbfe; /* blue-200 */
-        }
-
-        /* ─── Transcript bubble ────────────────────────────────── */
-        .msg-bubble {
-            border-radius: 0.75rem;
-            padding: 1rem 1.25rem;
-            /* Long/unbroken content must wrap rather than break layout.
-               pre-wrap preserves any intentional line breaks in the
-               message; break-word + overflow-wrap handle long tokens
-               (URLs, hashes, code) safely. */
-            white-space: pre-wrap;
-            word-break: break-word;
-            overflow-wrap: anywhere;
-            line-height: 1.625;
-        }
-        .msg-bubble-user {
-            background-color: #f9fafb; /* gray-50 */
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-left: 4px solid #16a34a; /* green-600 accent */
-        }
-        .msg-bubble-assistant {
-            background-color: #f0f9ff; /* sky-50 */
-            border: 1px solid #bae6fd; /* sky-200 */
-            border-left: 4px solid #2563eb; /* blue-600 accent */
-        }
-
-        /* Detectable code-style runs: keep monospace so assistant
-           snippets (table names, SQL, JSON) stay readable without
-           any visual height clamp. All message content is rendered
-           via th:text (HTML-escaped), so nothing here executes. */
-        .msg-bubble code,
-        .msg-bubble pre {
-            font-family: 'JetBrains Mono', 'Fira Code', ui-monospace,
-                         'SF Mono', Menlo, Consolas, monospace;
-            font-size: 0.875rem;
-            background-color: rgba(0, 0, 0, 0.05);
-            padding: 0 0.25rem;
-            border-radius: 0.25rem;
-        }
-        .msg-bubble pre {
-            display: block;
-            padding: 0.75rem 1rem;
-            margin: 0.5rem 0 0;
-            white-space: pre-wrap; /* keep monospace but still wrap */
-        }
-
-        /* ─── Message row ──────────────────────────────────────── */
-        .msg-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Conversation Thread')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='assistant-admin')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Page header -->
-    <section class="dash-hero p-6 sm:p-8 mb-8">
+    <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Conversation Thread</h1>
-                <p class="text-sm opacity-50 mt-1">
+                <p class="subtitle text-sm mt-1">
                     Message-by-message transcript
-                    <span th:if="${userName}">for <span class="font-semibold" th:text="${userName}">staff1</span></span>.
+                    <span th:if="${userName}">for <span class="font-semibold" style="color:#fff;" th:text="${userName}">staff1</span></span>.
                 </p>
             </div>
-            <span class="pill pill-admin">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span class="badge" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 Admin only
             </span>
         </div>
     </section>
 
     <!-- Transcript -->
-    <section class="stat-card p-6 sm:p-8">
-        <div th:if="${#lists.isEmpty(messages)}" class="uk-text-center uk-text-muted py-8">
-            <p class="text-lg font-semibold text-foreground-500">No messages in this thread</p>
-            <p class="text-sm">This user hasn't chatted with the assistant yet.</p>
+    <section class="card card-pad">
+        <div th:if="${#lists.isEmpty(messages)}" class="empty-state">
+            <div class="icon-tile">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3>No messages in this thread</h3>
+            <p>This user hasn't chatted with the assistant yet.</p>
         </div>
 
         <div th:if="${not #lists.isEmpty(messages)}" class="space-y-6">
@@ -197,12 +42,12 @@
 
                 <!-- Message body -->
                 <div class="flex-1 min-w-0">
-                    <!-- Handle: message header (role pill + timestamp) -->
+                    <!-- Message header (role badge + timestamp) -->
                     <div class="flex items-center gap-3 mb-1">
-                        <span class="pill"
-                              th:classappend="${msg.role.name() == 'USER'} ? 'pill-ok' : 'pill-admin'"
+                        <span class="badge"
+                              th:classappend="${msg.role.name() == 'USER'} ? 'badge-ink' : 'badge-info'"
                               th:text="${msg.role.name() == 'USER'} ? 'User' : 'Assistant'">User</span>
-                        <small class="text-xs text-muted-foreground"
+                        <small class="text-xs text-muted num"
                                th:text="${#temporals.format(msg.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2026-07-26 12:00:00</small>
                     </div>
 
@@ -217,9 +62,9 @@
 
     <!-- Back to logs -->
     <div class="mt-8">
-        <a class="btn-secondary px-4 py-2 text-sm font-semibold" th:href="@{/admin/assistant}">
+        <a class="btn btn-secondary px-4 text-sm" th:href="@{/admin/assistant}">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-            Back to Logs
+            <span class="btn-label">Back to Logs</span>
         </a>
     </div>
 </main>

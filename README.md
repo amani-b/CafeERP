@@ -21,6 +21,16 @@ CafeERP is a Spring Boot web application for managing cafe operations — catego
 - Actuator health endpoint (`/actuator/health`) for monitoring
 - Dev / Prod profile support
 
+## Design system
+
+All visual styling lives in `src/main/resources/static/css/app.css` — one
+shared stylesheet consumed by every page via `fragments/layout :: head`,
+replacing the old per-page inline `<style>` blocks. See
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) for the token reference
+and rationale, and [`docs/FRANKEN_UI_CLASS_REFERENCE.md`](docs/FRANKEN_UI_CLASS_REFERENCE.md)
+for the full list of Franken UI v2.1.2 utility classes actually shipped in
+this build (i.e. safe to use without checking the compiled CSS by hand).
+
 ## Tech stack
 
 - Java 21
