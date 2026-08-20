@@ -8,35 +8,35 @@
   'use strict';
 
   /* ---- Mobile off-canvas nav ------------------------------ */
-  var drawer = document.getElementById('mobile-nav');
-  if (drawer) {
-    var toggle = document.getElementById('mobile-nav-toggle');
-    var closeBtn = document.getElementById('mobile-nav-close');
+  var mobileNavToggle = document.getElementById('mobile-nav-toggle');
+  var mobileNavClose = document.getElementById('mobile-nav-close');
+  var mobileNavOverlay = document.getElementById('mobile-nav-overlay');
+  var mobileNavPanel = document.getElementById('mobile-nav-panel');
 
-    function openDrawer() {
-      drawer.classList.add('uk-open');
-      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+  if (mobileNavToggle && mobileNavPanel) {
+    function openMobileNav() {
+      mobileNavPanel.classList.add('open');
+      if (mobileNavOverlay) mobileNavOverlay.classList.add('open');
+      mobileNavToggle.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
     }
-    function closeDrawer() {
-      drawer.classList.remove('uk-open');
-      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+
+    function closeMobileNav() {
+      mobileNavPanel.classList.remove('open');
+      if (mobileNavOverlay) mobileNavOverlay.classList.remove('open');
+      mobileNavToggle.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
     }
 
-    if (toggle) toggle.addEventListener('click', openDrawer);
-    if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
-
-    // Click on the overlay (outside the drawer panel) closes it.
-    drawer.addEventListener('click', function (e) {
-      if (drawer.classList.contains('uk-open') && !e.target.closest('.uk-offcanvas-bar')) {
-        closeDrawer();
-      }
-    });
+    if (mobileNavToggle) mobileNavToggle.addEventListener('click', openMobileNav);
+    if (mobileNavClose) mobileNavClose.addEventListener('click', closeMobileNav);
+    if (mobileNavOverlay) mobileNavOverlay.addEventListener('click', closeMobileNav);
 
     // Escape closes the drawer — keyboard-navigation requirement.
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && drawer.classList.contains('uk-open')) {
-        closeDrawer();
-        if (toggle) toggle.focus();
+      if (e.key === 'Escape' && mobileNavPanel.classList.contains('open')) {
+        closeMobileNav();
+        if (mobileNavToggle) mobileNavToggle.focus();
       }
     });
   }

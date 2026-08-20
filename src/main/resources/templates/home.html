@@ -2,9 +2,11 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(title='Dashboard')}"></head>
 <body>
-<nav th:replace="~{fragments/layout :: nav(activePage='home')}"></nav>
+<div th:replace="~{fragments/layout :: sidebar(activePage='dashboard')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='dashboard')}"></div>
 
-<main class="uk-container max-w-7xl mx-auto px-4 py-8">
+<main class="uk-container max-w-7xl mx-auto px-4 py-8" style="margin-left: 260px;">
     <!-- Hero / greeting strip -->
     <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
