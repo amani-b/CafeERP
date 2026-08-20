@@ -1,121 +1,21 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="'Receipt #' + ${order.id} + ' - Cafe ERP'">Receipt - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Card style ───────────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        /* ─── Bouncy button (consistent with login/change-password) ─ */
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #111827; /* gray-900 */
-            color: #ffffff;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-primary:hover {
-            background-color: #374151; /* gray-700 */
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary:active {
-            transform: translateY(0) scale(0.95);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-            transition: transform 0.08s ease;
-        }
-        .btn-primary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Secondary button ─────────────────────────────────── */
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #f9fafb; /* gray-50 */
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-        }
-        .btn-secondary:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Receipt / print ──────────────────────────────────── */
-        .receipt-container { max-width: 600px; }
-        @media print {
-            .no-print { display: none !important; }
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Receipt #' + ${order.id})}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='orders')}" class="no-print"></nav>
 
-<main class="uk-container uk-margin-top receipt-container">
+<main class="uk-container uk-margin-top receipt-container" style="max-width:32rem;">
     <div class="no-print uk-margin-bottom flex flex-wrap items-center gap-3">
-        <a class="btn-secondary px-4 py-2 text-sm font-semibold" th:href="@{/orders}">&larr; Back to Orders</a>
-        <button class="btn-primary px-4 py-2 text-sm font-semibold" onclick="window.print()">Print</button>
+        <a class="btn btn-secondary px-4 text-sm" th:href="@{/orders}"><span class="btn-label">&larr; Back to Orders</span></a>
+        <button class="btn btn-primary px-4 text-sm" onclick="window.print()"><span class="btn-label">Print</span></button>
     </div>
 
-    <div class="stat-card p-6 sm:p-8">
+    <div class="card card-pad">
         <h2 class="text-xl font-extrabold tracking-tight uk-margin-remove-bottom">Receipt</h2>
-        <p class="text-sm text-muted-foreground uk-margin-remove-top">
+        <p class="text-sm text-muted uk-margin-remove-top num">
             <span th:text="'Order #' + ${order.id}">Order #1</span>
         </p>
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-muted num">
             <span th:text="${#temporals.format(order.createdAt, 'yyyy-MM-dd HH:mm')}">2026-07-04 08:00</span>
         </p>
 
@@ -133,9 +33,9 @@
             <tbody>
             <tr th:each="item : ${order.items}">
                 <td th:text="${item.itemName}">Latte</td>
-                <td class="uk-text-center" th:text="${item.quantity}">2</td>
-                <td class="uk-text-right" th:text="${#numbers.formatDecimal(item.unitPrice, 1, 2)}">3.50</td>
-                <td class="uk-text-right" th:text="${#numbers.formatDecimal(item.subtotal, 1, 2)}">7.00</td>
+                <td class="uk-text-center num" th:text="${item.quantity}">2</td>
+                <td class="uk-text-right num" th:text="${#numbers.formatDecimal(item.unitPrice, 1, 2)}">3.50</td>
+                <td class="uk-text-right num" th:text="${#numbers.formatDecimal(item.subtotal, 1, 2)}">7.00</td>
             </tr>
             </tbody>
         </table>
@@ -144,11 +44,11 @@
 
         <div class="uk-grid-small" uk-grid>
             <div class="uk-width-1-2"><strong>Items:</strong></div>
-            <div class="uk-width-1-2 uk-text-right" th:text="${order.itemCount}">3</div>
+            <div class="uk-width-1-2 uk-text-right num" th:text="${order.itemCount}">3</div>
         </div>
         <div class="uk-grid-small" uk-grid>
             <div class="uk-width-1-2"><strong>Total:</strong></div>
-            <div class="uk-width-1-2 uk-text-right" th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">10.50</div>
+            <div class="uk-width-1-2 uk-text-right num font-extrabold" th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">10.50</div>
         </div>
     </div>
 </main>

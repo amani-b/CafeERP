@@ -1,156 +1,23 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Dashboard - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Page header ──────────────────────────────────────── */
-        .dash-hero {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
-            color: #fff;
-            border-radius: 1.25rem;
-        }
-
-        /* ─── Stat card style ──────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
-        }
-        .stat-icon {
-            width: 2.75rem;
-            height: 2.75rem;
-            border-radius: 0.875rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        /* ─── Bouncy button (consistent with login/change-password) ─ */
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #111827; /* gray-900 */
-            color: #ffffff;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-primary:hover {
-            background-color: #374151; /* gray-700 */
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary:active {
-            transform: translateY(0) scale(0.95);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-            transition: transform 0.08s ease;
-        }
-        .btn-primary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Quick-action tiles ──────────────────────────────── */
-        .action-tile {
-            display: flex;
-            align-items: center;
-            gap: 0.875rem;
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1rem;
-            padding: 1rem 1.25rem;
-            cursor: pointer;
-            color: inherit;
-            text-decoration: none;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        .action-tile:hover {
-            transform: translateY(-3px) scale(1.01);
-            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.16);
-        }
-        .action-tile:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .action-tile:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Status pill ─────────────────────────────────────── */
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .pill-warn {
-            background-color: #fef3c7; /* yellow-100 */
-            color: #92400e;            /* yellow-800 */
-            border: 1px solid #fde68a; /* yellow-200 */
-        }
-        .pill-ok {
-            background-color: #dcfce7; /* green-100 */
-            color: #166534;            /* green-800 */
-            border: 1px solid #bbf7d0; /* green-200 */
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Dashboard')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='home')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Hero / greeting strip -->
-    <section class="dash-hero p-6 sm:p-8 mb-8">
+    <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Dashboard</h1>
-                <p class="text-sm opacity-50 mt-1" sec:authorize="hasRole('ADMIN')">A quick snapshot of your cafe's operations.</p>
-                <p class="text-sm opacity-50 mt-1" sec:authorize="!hasRole('ADMIN')">Here's what's happening on your shift.</p>
+                <p class="subtitle text-sm mt-1" sec:authorize="hasRole('ADMIN')">A quick snapshot of your cafe's operations.</p>
+                <p class="subtitle text-sm mt-1" sec:authorize="hasRole('KITCHEN')">Here's what the kitchen queue looks like right now.</p>
+                <p class="subtitle text-sm mt-1" sec:authorize="hasRole('STAFF')">Here's what's happening on your shift.</p>
             </div>
             <div class="flex items-center gap-3">
-                <span class="pill pill-ok">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                <span class="badge badge-success" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                     System online
                 </span>
             </div>
@@ -160,40 +27,59 @@
     <!-- Inventory status (ADMIN only) -->
     <section sec:authorize="hasRole('ADMIN')" class="mb-8">
         <!-- Low stock alert -->
-        <div th:if="${lowStockCount > 0}" class="stat-card p-6 sm:p-8 border-l-4" style="border-left-color:#d97706; background:#fffbeb;">
+        <div th:if="${lowStockCount > 0}" class="card card-pad" style="border-left:4px solid var(--warn);">
             <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div class="stat-icon" style="background:#fef3c7; color:#92400e;">
+                <div class="icon-tile icon-tile--warn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <h2 class="text-lg font-bold">Low Stock Alert</h2>
-                        <span class="pill pill-warn">Attention needed</span>
+                        <span class="badge badge-warn">Attention needed</span>
                     </div>
-                    <p class="mt-1 text-sm font-semibold" th:text="${lowStockCount + ' item(s) low on stock'}">3 item(s) low on stock</p>
+                    <p class="mt-1 text-sm font-semibold num" th:text="${lowStockCount + ' item(s) low on stock'}">3 item(s) low on stock</p>
                 </div>
-                <a th:href="@{/inventory}" class="btn-primary px-5 py-3 text-sm font-semibold">
-                    View Inventory
+                <a th:href="@{/inventory}" class="btn btn-primary px-5 text-sm">
+                    <span class="btn-label">View Inventory</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </a>
             </div>
         </div>
 
         <!-- All stocked -->
-        <div th:if="${lowStockCount == 0}" class="stat-card p-6 sm:p-8 border-l-4" style="border-left-color:#16a34a; background:#f0fdf4;">
+        <div th:if="${lowStockCount == 0}" class="card card-pad" style="border-left:4px solid var(--success);">
             <div class="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div class="stat-icon" style="background:#dcfce7; color:#166534;">
+                <div class="icon-tile icon-tile--success">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <h2 class="text-lg font-bold">Inventory</h2>
-                        <span class="pill pill-ok">All good</span>
+                        <span class="badge badge-success">All good</span>
                     </div>
-                    <p class="mt-1 text-sm">All items are well stocked.</p>
+                    <p class="mt-1 text-sm text-muted">All items are well stocked.</p>
                 </div>
-                <a th:href="@{/inventory}" class="btn-primary px-5 py-3 text-sm font-semibold">
-                    View Inventory
+                <a th:href="@{/inventory}" class="btn btn-secondary px-5 text-sm">
+                    <span class="btn-label">View Inventory</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Kitchen quick status (KITCHEN only) -->
+    <section sec:authorize="hasRole('KITCHEN')" class="mb-8">
+        <div class="card card-pad" style="border-left:4px solid var(--info);">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div class="icon-tile icon-tile--info">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-lg font-bold">Order queue</h2>
+                    <p class="mt-1 text-sm text-muted">Jump straight into the live queue to start preparing orders.</p>
+                </div>
+                <a th:href="@{/kitchen}" class="btn btn-primary px-5 text-sm">
+                    <span class="btn-label">Open Kitchen Queue</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </a>
             </div>
@@ -202,45 +88,44 @@
 
     <!-- Key stats -->
     <section class="mb-8">
-        <h3 class="text-sm font-semibold uppercase tracking-wider text-secondary mb-4">At a glance</h3>
+        <h3 class="section-label mb-4">At a glance</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <!-- Stat: Inventory -->
-            <div class="stat-card p-5">
+            <div class="card card--hover p-5" sec:authorize="hasRole('ADMIN')">
                 <div class="flex items-center gap-3">
-                    <div class="stat-icon" style="background:#dbeafe; color:#1e40af;">
+                    <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm text-muted-foreground">Inventory Status</p>
-                        <p class="text-xl font-extrabold" sec:authorize="hasRole('ADMIN')" th:text="${lowStockCount}">0</p>
-                        <p class="text-xs text-muted-foreground" sec:authorize="hasRole('ADMIN')">items low on stock</p>
-                        <p class="text-xl font-extrabold" sec:authorize="!hasRole('ADMIN')">Check stock levels</p>
+                        <p class="text-sm text-muted">Inventory Status</p>
+                        <p class="text-xl font-extrabold num" th:text="${lowStockCount}">0</p>
+                        <p class="text-xs text-muted">items low on stock</p>
                     </div>
                 </div>
             </div>
 
             <!-- Stat: Menu -->
-            <div class="stat-card p-5">
+            <div class="card card--hover p-5">
                 <div class="flex items-center gap-3">
-                    <div class="stat-icon" style="background:#fef3c7; color:#92400e;">
+                    <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm text-muted-foreground">Menu</p>
-                        <p class="text-xl font-extrabold">Browse & manage</p>
+                        <p class="text-sm text-muted">Menu</p>
+                        <p class="text-xl font-extrabold">Browse &amp; manage</p>
                     </div>
                 </div>
             </div>
 
             <!-- Stat: Orders -->
-            <div class="stat-card p-5">
+            <div class="card card--hover p-5">
                 <div class="flex items-center gap-3">
-                    <div class="stat-icon" style="background:#dcfce7; color:#166534;">
+                    <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm text-muted-foreground">Orders</p>
-                        <p class="text-xl font-extrabold">Track & serve</p>
+                        <p class="text-sm text-muted">Orders</p>
+                        <p class="text-xl font-extrabold">Track &amp; serve</p>
                     </div>
                 </div>
             </div>
@@ -249,33 +134,42 @@
 
     <!-- Quick actions -->
     <section>
-        <h3 class="text-sm font-semibold uppercase tracking-wider text-secondary mb-4">Quick actions</h3>
+        <h3 class="section-label mb-4">Quick actions</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <a th:href="@{/orders}" class="action-tile">
-                <div class="stat-icon" style="background:#dbeafe; color:#1e40af;">
+            <a th:href="@{/orders}" class="tile" sec:authorize="hasAnyRole('STAFF','ADMIN')">
+                <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                 </div>
                 <div class="flex-1">
                     <p class="font-semibold">New Order</p>
-                    <p class="text-xs text-muted-foreground">Create an order</p>
+                    <p class="text-xs text-muted">Create an order</p>
                 </div>
             </a>
-            <a th:href="@{/menu}" class="action-tile">
-                <div class="stat-icon" style="background:#fef3c7; color:#92400e;">
+            <a th:href="@{/kitchen}" class="tile" sec:authorize="hasAnyRole('KITCHEN','ADMIN')">
+                <div class="icon-tile icon-tile--info">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="flex-1">
+                    <p class="font-semibold">Kitchen Queue</p>
+                    <p class="text-xs text-muted">View active orders</p>
+                </div>
+            </a>
+            <a th:href="@{/menu}" class="tile" sec:authorize="hasRole('ADMIN')">
+                <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                 </div>
                 <div class="flex-1">
                     <p class="font-semibold">Menu</p>
-                    <p class="text-xs text-muted-foreground">Manage menu items</p>
+                    <p class="text-xs text-muted">Manage menu items</p>
                 </div>
             </a>
-            <a th:href="@{/inventory}" class="action-tile">
-                <div class="stat-icon" style="background:#dcfce7; color:#166534;">
+            <a th:href="@{/inventory}" class="tile" sec:authorize="hasRole('ADMIN')">
+                <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                 </div>
                 <div class="flex-1">
                     <p class="font-semibold">Inventory</p>
-                    <p class="text-xs text-muted-foreground">Check stock levels</p>
+                    <p class="text-xs text-muted">Check stock levels</p>
                 </div>
             </a>
         </div>
