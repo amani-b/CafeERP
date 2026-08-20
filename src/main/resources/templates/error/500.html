@@ -1,23 +1,15 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Internal Server Error - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-</head>
+<head th:replace="~{fragments/layout :: head(title='Internal Server Error')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='dashboard')}"></nav>
 
-<main class="uk-container uk-margin-top">
-    <div class="uk-flex uk-flex-center">
-        <div class="uk-width-large uk-text-center">
-            <h1 class="uk-heading-primary uk-margin-remove">500</h1>
-            <h2 class="uk-h3" th:text="${error}">Internal Server Error</h2>
-            <p class="uk-text-muted" th:text="${message}">An unexpected error occurred.</p>
-            <a class="uk-button uk-button-primary" th:href="@{/}">Back to Dashboard</a>
-        </div>
+<main class="uk-container flex items-center justify-center" style="min-height:60vh;">
+    <div class="text-center" style="max-width:26rem;">
+        <p class="font-extrabold num" style="font-size:4rem;line-height:1;color:var(--line-strong);">500</p>
+        <h2 class="text-xl font-bold mt-2" th:text="${error}">Internal Server Error</h2>
+        <p class="text-sm text-muted mt-2" th:text="${message}">Something went wrong.</p>
+        <a class="btn btn-primary px-5 text-sm mt-6" th:href="@{/}"><span class="btn-label">Back to Dashboard</span></a>
     </div>
 </main>
 

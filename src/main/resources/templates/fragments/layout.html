@@ -2,27 +2,50 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 
 <!-- ============================================================ -->
-<!-- Head fragment: shared <head> contents except <title>         -->
+<!-- Head fragment: shared <head> contents, parametrized by title -->
+<!-- Usage:  <head th:replace="~{fragments/layout :: head(title='Dashboard')}"></head> -->
 <!-- ============================================================ -->
-<head th:fragment="head">
+<head th:fragment="head(title)">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' - Cafe ERP'">Cafe ERP</title>
+
+    <!-- Franken UI v2.1.2: structural/behavioral primitives only
+         (uk-container, uk-table, uk-offcanvas, uk-grid, uk-alert).
+         All color, shadow, radius, and motion styling lives in
+         app.css — see docs/DESIGN_SYSTEM.md. -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
     <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+
+    <!-- Assistant widget assets: loaded here (not after the fragment
+         div below) because th:replace="~{fragments/layout :: assistant-widget}"
+         only pulls in the single element carrying th:fragment — trailing
+         siblings are never included. Keeping these in `head` is what
+         actually gets them onto every page; leaving them where they
+         previously sat meant they were never loaded at all. -->
+    <link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
+    <script th:src="@{/js/app.js}" defer="defer"></script>
+    <script th:src="@{/js/assistant-chat.js}" defer="defer"></script>
 </head>
 
 <!-- ============================================================ -->
 <!-- Top navigation bar fragment                                   -->
-<!-- activePage parameter controls uk-active highlighting          -->
-<!-- Rebuilt with real Franken UI v2.1.2 (Dos) classes:            -->
-<!--   uk-container, uk-nav, uk-nav-default, uk-active             -->
-<!--   plus Tailwind-style utilities (flex, hidden, lg:flex, etc.) -->
+<!-- activePage parameter controls active-state highlighting       -->
 <!-- ============================================================ -->
-<nav th:fragment="nav(activePage)" class="sticky top-0 bg-background border-b">
-    <div class="uk-container uk-container-expand flex items-center justify-between">
-        <a class="font-semibold text-lg" th:href="@{/}">Cafe ERP</a>
-        <ul class="uk-nav uk-nav-default hidden lg:flex lg:items-center lg:gap-4">
+<nav th:fragment="nav(activePage)" class="sticky top-0 z-50 bg-background border-b" style="background:var(--paper); border-color:var(--line-strong);">
+    <div class="uk-container uk-container-expand flex items-center justify-between" style="min-height:3.75rem;">
+        <a class="flex items-center gap-2 font-extrabold text-base tracking-tight" th:href="@{/}" style="color:var(--ink);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+            Cafe ERP
+        </a>
+        <ul class="uk-nav uk-nav-default hidden lg:flex lg:items-center lg:gap-5">
             <li th:classappend="${activePage == 'dashboard' || activePage == 'home'} ? 'uk-active' : ''">
                 <a th:href="@{/}">Dashboard</a>
             </li>
@@ -54,24 +77,23 @@
                 <a th:href="@{/account/password}">Change Password</a>
             </li>
             <li>
-                <form th:action="@{/logout}" method="post">
-                    <button type="submit" class="border-0"
-                            style="background:none;border:none;cursor:pointer;color:inherit;">
+                <form th:action="@{/logout}" method="post" data-no-loading>
+                    <button type="submit" class="btn btn-ghost" style="min-height:auto;padding:.25rem .25rem;">
                         Logout
                     </button>
                 </form>
             </li>
         </ul>
         <!-- Mobile hamburger: toggles offcanvas drawer (inline SVG since 'menu' icon absent from Franken v2.1.2) -->
-        <button id="mobile-nav-toggle" class="flex lg:hidden p-2" type="button" aria-label="Open menu">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <button id="mobile-nav-toggle" class="flex lg:hidden btn btn-ghost" style="padding:.5rem;min-height:auto;" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
     </div>
 
     <!-- Mobile offcanvas navigation -->
     <div id="mobile-nav" uk-offcanvas="overlay: true; flip: true">
-        <div class="uk-offcanvas-bar">
-            <button id="mobile-nav-close" class="absolute top-4 right-4" type="button" uk-close></button>
+        <div class="uk-offcanvas-bar" style="background:var(--paper);">
+            <button id="mobile-nav-close" class="absolute top-4 right-4 btn btn-ghost" style="min-height:auto;padding:.4rem;" type="button" aria-label="Close menu" uk-close></button>
             <ul class="uk-nav uk-nav-default mt-4">
                 <li th:classappend="${activePage == 'dashboard' || activePage == 'home'} ? 'uk-active' : ''">
                     <a th:href="@{/}">Dashboard</a>
@@ -105,46 +127,20 @@
                 </li>
                 <li class="uk-nav-divider"></li>
                 <li>
-                    <form th:action="@{/logout}" method="post">
-                        <button type="submit" class="w-full">Logout</button>
+                    <form th:action="@{/logout}" method="post" data-no-loading>
+                        <button type="submit" class="btn btn-secondary w-full">Logout</button>
                     </form>
                 </li>
             </ul>
         </div>
     </div>
-
-    <!-- Mobile offcanvas toggle: vanilla JS since Franken UI v2.1.2 ships no uk-toggle
-         handler (the literal "uk-toggle" is absent from core.iife.js). The .uk-open
-         class on #mobile-nav drives the slide animation via the rule
-         .uk-open > .uk-offcanvas-bar { left: 0 } in franken-core.min.css. -->
-    <script>
-        (function () {
-            var drawer = document.getElementById('mobile-nav');
-            if (!drawer) return;
-            var toggle = document.getElementById('mobile-nav-toggle');
-            var closeBtn = document.getElementById('mobile-nav-close');
-
-            function open() { drawer.classList.add('uk-open'); }
-            function close() { drawer.classList.remove('uk-open'); }
-
-            if (toggle) toggle.addEventListener('click', open);
-            if (closeBtn) closeBtn.addEventListener('click', close);
-
-            // Click on the overlay background (the #mobile-nav element itself, outside
-            // .uk-offcanvas-bar) closes the drawer.
-            drawer.addEventListener('click', function (e) {
-                if (drawer.classList.contains('uk-open') && !e.target.closest('.uk-offcanvas-bar')) {
-                    close();
-                }
-            });
-        })();
-    </script>
 </nav>
 
 <!-- ============================================================ -->
 <!-- Assistant chat widget fragment                                -->
-<!-- Restyled chrome only — all th:*/sec:* bindings, element IDs,  -->
-<!-- and JS hooks (assistant-chat.js) are byte-for-byte unchanged. -->
+<!-- All th:*/sec:* bindings and element IDs are unchanged so the  -->
+<!-- existing assistant-chat.js hooks keep working as-is; only the -->
+<!-- chrome (assistant-chat.css) was restyled to the app's tokens. -->
 <!-- ============================================================ -->
 <div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget">
     <div id="assistant-chat-panel">
@@ -166,6 +162,4 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
     </button>
 </div>
-<link rel="stylesheet" th:href="@{/css/assistant-chat.css}">
-<script th:src="@{/js/assistant-chat.js}"></script>
 </html>

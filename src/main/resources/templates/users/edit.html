@@ -1,150 +1,29 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Edit User - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Page header ──────────────────────────────────────── */
-        .dash-hero {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
-            color: #fff;
-            border-radius: 1.25rem;
-        }
-
-        /* ─── Card style ───────────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
-        }
-
-        /* ─── Bouncy button (consistent with orders) ───────────── */
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #111827; /* gray-900 */
-            color: #ffffff;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-primary:hover {
-            background-color: #374151; /* gray-700 */
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary:active {
-            transform: translateY(0) scale(0.95);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-            transition: transform 0.08s ease;
-        }
-        .btn-primary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Secondary button ─────────────────────────────────── */
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #f9fafb; /* gray-50 */
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-        }
-        .btn-secondary:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Form field label ─────────────────────────────────── */
-        .form-label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #374151; /* gray-700 */
-            margin-bottom: 0.375rem;
-        }
-        .field-error {
-            margin-top: 0.375rem;
-            font-size: 0.75rem;
-            color: #dc2626; /* red-600 */
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Edit User')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='users')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
-    <!-- Page header -->
-    <section class="dash-hero p-6 sm:p-8 mb-8">
+    <section class="page-header card-pad mb-8">
         <div>
-            <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+            <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
             <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Edit User</h1>
-            <p class="text-sm opacity-50 mt-1">Update the account details and role for this user.</p>
+            <p class="subtitle text-sm mt-1">Update the account details and role for this user.</p>
         </div>
     </section>
 
-    <!-- Edit form -->
-    <section class="stat-card p-6 sm:p-8">
+    <section class="card card-pad">
         <form th:action="@{/users/update/{id}(id=${user.id})}" th:object="${user}" method="post" class="uk-width-1-2@m">
             <div class="mb-4">
-                <label for="username" class="form-label">Username</label>
+                <label for="username" class="field-label">Username</label>
                 <input type="text" id="username" class="uk-input w-full" th:field="*{username}" placeholder="e.g. barista"
                        th:classappend="${#fields.hasErrors('username')} ? 'uk-form-danger'">
                 <div class="field-error" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">Username is required</div>
             </div>
 
             <div class="mb-4">
-                <label for="role" class="form-label">Role</label>
+                <label for="role" class="field-label">Role</label>
                 <select id="role" class="uk-select w-full" th:field="*{role}"
                         th:classappend="${#fields.hasErrors('role')} ? 'uk-form-danger'">
                     <option value="">Select role</option>
@@ -163,8 +42,8 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="btn-primary px-5 py-3 text-sm font-semibold">Update</button>
-                <a class="btn-secondary px-5 py-3 text-sm font-semibold" th:href="@{/users}">Cancel</a>
+                <button type="submit" class="btn btn-primary px-5 text-sm"><span class="btn-label">Update</span></button>
+                <a class="btn btn-secondary px-5 text-sm" th:href="@{/users}"><span class="btn-label">Cancel</span></a>
             </div>
         </form>
     </section>

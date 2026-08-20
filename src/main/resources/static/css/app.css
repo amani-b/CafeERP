@@ -1,0 +1,531 @@
+/* ============================================================
+   Cafe ERP — Shared Design System
+   ------------------------------------------------------------
+   Single source of truth for every page's visual language.
+   Franken UI v2.1.2 (CDN) supplies structural/behavioral
+   primitives only (uk-container, uk-table, uk-offcanvas, uk-grid,
+   uk-alert). It ships no color, shadow, radius, or motion
+   utilities for this version, so all of that lives here, once,
+   instead of being re-declared in a <style> block on every page.
+
+   Palette: black/white/paper first. Color is reserved for
+   semantic status only (success / warning / danger / info) —
+   never for decoration. See docs/DESIGN_SYSTEM.md for the
+   full rationale and token reference.
+   ============================================================ */
+
+@layer tokens, base, layout, components, forms, table, kitchen, chat, utilities, print;
+
+@layer tokens {
+  :root {
+    /* ── Neutrals ─────────────────────────────────────────── */
+    --ink: #0a0a0a;
+    --ink-soft: #262624;
+    --paper: #ffffff;
+    --surface: #faf9f6;      /* page background — warm "paper" white */
+    --surface-2: #f1f0ec;    /* subtle fill: hover, stripes, tiles */
+    --line: #e6e4de;         /* hairline border */
+    --line-strong: #d2d0c8;
+    --muted: #6d6b64;
+    --muted-2: #9c998f;
+
+    /* ── Semantic accents (status only) ──────────────────── */
+    --danger: #b3261e;    --danger-bg: #fdf2f1;  --danger-border: #f2d2cf;
+    --warn: #92450a;      --warn-bg: #fdf3e2;    --warn-border: #f0dcae;
+    --success: #146c3f;   --success-bg: #eff8f2; --success-border: #c9e6d3;
+    --info: #1d4ed8;      --info-bg: #eef3fe;    --info-border: #cddbfa;
+
+    /* ── Shape / elevation ───────────────────────────────── */
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 2px rgba(10, 10, 10, .05);
+    --shadow: 0 1px 2px rgba(10, 10, 10, .04), 0 8px 20px -10px rgba(10, 10, 10, .18);
+
+    /* ── Type ─────────────────────────────────────────────── */
+    --font-sans: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* ── Motion ───────────────────────────────────────────── */
+    --ease: cubic-bezier(.2, .7, .3, 1);
+    --dur: .16s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --dur: 0.001s; }
+  }
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--surface);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 { font-family: var(--font-sans); letter-spacing: -0.01em; }
+
+  a { color: inherit; }
+
+  hr { border: none; border-top: 1px solid var(--line); }
+
+  /* Tabular / identifying figures (prices, IDs, quantities, timestamps)
+     read in monospace across the whole app — a deliberate signature
+     tying the UI back to a register receipt / kitchen ticket. */
+  .num, .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection { background: var(--ink); color: var(--paper); }
+
+  /* Single global focus style for anything not covered by a
+     component-specific ring below (links, native checkboxes, etc). */
+  a:focus-visible,
+  input[type="checkbox"]:focus-visible,
+  input[type="radio"]:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer layout {
+  /* Solid ink header bar — replaces the previous gradient "hero".
+     One flat, deliberate black block per page: the strongest
+     graphic move in the system, spent in exactly one place. */
+  .page-header {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: var(--radius-lg);
+  }
+  .page-header .eyebrow { color: rgba(255, 255, 255, .55); }
+  .page-header .subtitle { color: rgba(255, 255, 255, .6); }
+
+  .section-label {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--muted);
+  }
+}
+
+@layer components {
+  /* ── Card ─────────────────────────────────────────────── */
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .card--hover {
+    transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card--hover:hover {
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+  }
+
+  /* ── Buttons ──────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 2.75rem;
+    font-weight: 600;
+    font-size: .875rem;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color var(--dur) var(--ease),
+                border-color var(--dur) var(--ease),
+                color var(--dur) var(--ease),
+                transform var(--dur) var(--ease),
+                box-shadow var(--dur) var(--ease),
+                opacity var(--dur) var(--ease);
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled,
+  .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .btn-primary {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+  .btn-primary:hover { background: var(--ink-soft); border-color: var(--ink-soft); }
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  }
+
+  .btn-secondary {
+    background: var(--paper);
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+  .btn-secondary:hover { background: var(--surface-2); }
+  .btn-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+  }
+  .btn-ghost:hover { color: var(--ink); background: var(--surface-2); }
+
+  /* Loading state, toggled by app.js on submit — shows a spinner and
+     blocks re-submission (prevents accidental duplicate orders). */
+  .btn[data-loading="true"] { pointer-events: none; opacity: .75; }
+  .btn[data-loading="true"] .btn-label { visibility: hidden; }
+  .btn-spinner {
+    display: none;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, .35);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    position: absolute;
+    animation: btn-spin .6s linear infinite;
+  }
+  .btn[data-loading="true"] .btn-spinner { display: inline-block; }
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
+
+  /* ── Icon tile (monochrome by default) ───────────────────
+     Color variants exist only for genuinely semantic contexts
+     (a status icon on a low-stock alert, not a decorative
+     dashboard tile) — see .icon-tile--warn etc. */
+  .icon-tile {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .icon-tile--sm { width: 2.25rem; height: 2.25rem; }
+  .icon-tile--warn { background: var(--warn-bg); color: var(--warn); }
+  .icon-tile--success { background: var(--success-bg); color: var(--success); }
+  .icon-tile--danger { background: var(--danger-bg); color: var(--danger); }
+  .icon-tile--info { background: var(--info-bg); color: var(--info); }
+  .icon-tile--ink { background: var(--ink); color: var(--paper); }
+
+  /* ── Quick-action tile ────────────────────────────────── */
+  .tile {
+    display: flex;
+    align-items: center;
+    gap: .875rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--dur) var(--ease),
+                transform var(--dur) var(--ease),
+                box-shadow var(--dur) var(--ease);
+  }
+  .tile:hover { border-color: var(--line-strong); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .tile:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  }
+
+  /* ── Badges (status pills) ────────────────────────────── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .65rem;
+    border-radius: 999px;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    line-height: 1.1;
+  }
+  .badge-neutral { background: var(--surface-2); color: var(--ink-soft); border-color: var(--line-strong); }
+  .badge-success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+  .badge-danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  .badge-info { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+  .badge-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  /* ── Alerts ───────────────────────────────────────────── */
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    border: 1px solid;
+    border-radius: var(--radius);
+    padding: .85rem 1rem;
+    font-size: .875rem;
+  }
+  .alert svg { flex-shrink: 0; margin-top: .1rem; }
+  .alert-danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  .alert-success { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+  .alert-warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn); }
+  .alert-info { background: var(--info-bg); border-color: var(--info-border); color: var(--info); }
+
+  /* ── Conversation transcript (assistant admin logs) ──────
+     Monochrome by default — role is distinguished by label +
+     a thin left accent, not by two different colored fills,
+     so a long transcript doesn't turn into a wall of color. */
+  .msg-row { display: flex; align-items: flex-start; gap: .75rem; }
+
+  .avatar {
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .avatar-user { background: var(--ink); color: var(--paper); }
+  .avatar-assistant { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); }
+
+  .msg-bubble {
+    border-radius: var(--radius);
+    padding: .85rem 1.1rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+    font-size: .9rem;
+  }
+  .msg-bubble-user { background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--ink); }
+  .msg-bubble-assistant { background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--info); }
+
+  .msg-bubble code, .msg-bubble pre {
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    background: rgba(10, 10, 10, .05);
+    padding: 0 .25rem;
+    border-radius: 4px;
+  }
+  .msg-bubble pre { display: block; padding: .75rem 1rem; margin: .5rem 0 0; white-space: pre-wrap; }
+
+
+  /* ── Empty state ──────────────────────────────────────── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: .35rem;
+    padding: 3rem 1.5rem;
+  }
+  .empty-state .icon-tile { width: 3rem; height: 3rem; border-radius: 999px; margin-bottom: .5rem; }
+  .empty-state h3 { font-size: 1rem; font-weight: 700; color: var(--ink); margin: 0; }
+  .empty-state p { font-size: .875rem; color: var(--muted); max-width: 26rem; margin: 0; }
+}
+
+@layer forms {
+  .field-label {
+    display: block;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: .375rem;
+  }
+  .field-hint { font-size: .78rem; color: var(--muted); margin-top: .375rem; }
+  .field-error {
+    display: flex;
+    align-items: flex-start;
+    gap: .3rem;
+    font-size: .78rem;
+    color: var(--danger);
+    margin-top: .375rem;
+  }
+
+  .uk-input, .uk-select, .uk-textarea {
+    border: 1px solid var(--line-strong) !important;
+    border-radius: var(--radius) !important;
+    background: var(--paper) !important;
+    color: var(--ink) !important;
+    font-family: var(--font-sans) !important;
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease) !important;
+  }
+  .uk-input::placeholder, .uk-textarea::placeholder { color: var(--muted-2); }
+  .uk-input:focus, .uk-select:focus, .uk-textarea:focus {
+    border-color: var(--ink) !important;
+    box-shadow: 0 0 0 3px rgba(10, 10, 10, .08) !important;
+    outline: none !important;
+  }
+  .uk-form-danger, .uk-form-danger:focus {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(179, 38, 30, .08) !important;
+  }
+  .uk-checkbox {
+    accent-color: var(--ink);
+  }
+
+  /* Live validation checklist rows (change-password page) */
+  .req-row { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--muted-2); transition: color var(--dur) var(--ease); }
+  .req-row.met { color: var(--success); }
+  .req-row svg { flex-shrink: 0; }
+}
+
+@layer table {
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .uk-table thead th {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line-strong) !important;
+    background: transparent;
+    white-space: nowrap;
+  }
+  .uk-table tbody tr { border-bottom: 1px solid var(--line); }
+  .uk-table tbody tr:hover { background: var(--surface-2); }
+  .uk-table tbody td { vertical-align: middle; }
+
+  .row-flag-warn { background-color: var(--warn-bg); }
+  .row-flag-warn:hover { background-color: #f9ecc9; }
+
+  .stock-bar-track {
+    height: 6px;
+    max-width: 8rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: .3rem;
+  }
+  .stock-bar-fill { height: 100%; border-radius: 999px; transition: width var(--dur) var(--ease); }
+  .stock-bar-fill.fill-ok { background: var(--success); }
+  .stock-bar-fill.fill-warn { background: var(--warn); }
+  .stock-bar-fill.fill-danger { background: var(--danger); }
+
+  .edit-form-row { background: var(--surface-2); }
+  [hidden] { display: none !important; }
+}
+
+@layer kitchen {
+  /* Kitchen order ticket. The dashed rule under the header is the
+     one deliberate "risk" element in the system — a nod to a torn
+     receipt stub, appropriate to a kitchen order queue and nowhere
+     else in the app. */
+  .ticket {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border-left: 4px solid var(--line-strong);
+  }
+  .ticket--pending { border-left-color: var(--info); }
+  .ticket--preparing { border-left-color: var(--warn); }
+  .ticket--ready { border-left-color: var(--success); }
+
+  .ticket-tear {
+    border-top: 1px dashed var(--line-strong);
+    margin: 0 1.25rem;
+  }
+
+  .ticket-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+  .ticket-items li { display: flex; align-items: baseline; gap: .6rem; font-size: 1.02rem; font-weight: 600; color: var(--ink-soft); }
+  .ticket-items .qty {
+    flex-shrink: 0;
+    min-width: 2.25rem;
+    text-align: center;
+    background: var(--surface-2);
+    color: var(--ink);
+    border-radius: var(--radius-sm);
+    padding: .2rem .4rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+  .ticket-items .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+  .ticket-stat { display: flex; align-items: center; gap: .4rem; font-size: .95rem; font-weight: 700; color: var(--ink); }
+
+  .status-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: .6rem .5rem;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--line-strong);
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--paper);
+    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease),
+                background-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .status-btn:hover { transform: translateY(-1px); border-color: var(--ink); color: var(--ink); }
+  .status-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink); }
+  .status-btn.active { color: var(--paper); border-color: transparent; }
+  .status-btn[data-status="PENDING"].active { background: var(--info); }
+  .status-btn[data-status="PREPARING"].active { background: var(--warn); }
+  .status-btn[data-status="READY"].active { background: var(--success); }
+  .status-btn[data-status="COMPLETED"].active { background: var(--ink); }
+}
+
+@layer chat {
+  /* Shared with assistant-chat.css — kept as a separate file since
+     it is loaded only through the assistant-widget fragment, but
+     it consumes the same tokens defined above. */
+}
+
+@layer utilities {
+  .card-pad { padding: 1.5rem; }
+  @media (min-width: 640px) { .card-pad { padding: 2rem; } }
+
+  .text-muted { color: var(--muted); }
+  .text-muted-2 { color: var(--muted-2); }
+  .border-hairline { border-color: var(--line) !important; }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 37%, var(--surface-2) 63%);
+    background-size: 400% 100%;
+    animation: skeleton-loading 1.4s ease infinite;
+    border-radius: var(--radius-sm);
+  }
+  @keyframes skeleton-loading {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+  }
+}
+
+@layer print {
+  @media print {
+    nav, #assistant-chat-widget, .no-print { display: none !important; }
+    body { background: #fff; }
+    .card { box-shadow: none; border: 1px solid #000; }
+    .page-header { background: #fff !important; color: #000 !important; border: 1px solid #000; }
+    .page-header .eyebrow, .page-header .subtitle { color: #000 !important; }
+  }
+}

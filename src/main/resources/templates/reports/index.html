@@ -1,191 +1,51 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sales Report - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Page header ──────────────────────────────────────── */
-        .dash-hero {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
-            color: #fff;
-            border-radius: 1.25rem;
-        }
-
-        /* ─── Card style ───────────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
-        }
-        .stat-icon {
-            width: 2.75rem;
-            height: 2.75rem;
-            border-radius: 0.875rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        /* ─── Bouncy button (consistent with orders/menu/inventory) ─ */
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #111827; /* gray-900 */
-            color: #ffffff;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-primary:hover {
-            background-color: #374151; /* gray-700 */
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary:active {
-            transform: translateY(0) scale(0.95);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-            transition: transform 0.08s ease;
-        }
-        .btn-primary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Secondary button ─────────────────────────────────── */
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #f9fafb; /* gray-50 */
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-        }
-        .btn-secondary:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Status pill ─────────────────────────────────────── */
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .pill-warn {
-            background-color: #fef3c7; /* yellow-100 */
-            color: #92400e;            /* yellow-800 */
-            border: 1px solid #fde68a; /* yellow-200 */
-        }
-        .pill-ok {
-            background-color: #dcfce7; /* green-100 */
-            color: #166534;            /* green-800 */
-            border: 1px solid #bbf7d0; /* green-200 */
-        }
-        .pill-muted {
-            background-color: #f3f4f6; /* gray-100 */
-            color: #374151;            /* gray-700 */
-            border: 1px solid #e5e7eb; /* gray-200 */
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Sales Report')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='reports')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Page header -->
-    <section class="dash-hero p-6 sm:p-8 mb-8">
+    <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Sales Report</h1>
-                <p class="text-sm opacity-50 mt-1">Sales performance, order volumes, and top-selling items.</p>
+                <p class="subtitle text-sm mt-1">Sales performance, order volumes, and top-selling items.</p>
             </div>
-            <span class="pill pill-muted">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span class="badge" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 Admin only
             </span>
         </div>
     </section>
 
     <!-- Date range filter -->
-    <section class="stat-card p-6 sm:p-8 mb-8">
+    <section class="card card-pad mb-8">
         <form method="get" action="/reports" class="flex flex-wrap items-end gap-3">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="text-sm font-bold mr-1">Quick:</span>
-                <a th:href="@{/reports(preset='today')}" class="px-4 py-2 text-sm font-semibold"
-                   th:classappend="${selectedPreset == 'today'} ? 'btn-primary' : 'btn-secondary'">Today</a>
-                <a th:href="@{/reports(preset='week')}" class="px-4 py-2 text-sm font-semibold"
-                   th:classappend="${selectedPreset == 'week'} ? 'btn-primary' : 'btn-secondary'">This Week</a>
-                <a th:href="@{/reports(preset='month')}" class="px-4 py-2 text-sm font-semibold"
-                   th:classappend="${selectedPreset == 'month'} ? 'btn-primary' : 'btn-secondary'">This Month</a>
-                <a th:href="@{/reports(preset='all')}" class="px-4 py-2 text-sm font-semibold"
-                   th:classappend="${selectedPreset == 'all'} ? 'btn-primary' : 'btn-secondary'">All Time</a>
+                <a th:href="@{/reports(preset='today')}" class="btn px-4 text-sm"
+                   th:classappend="${selectedPreset == 'today'} ? 'btn-primary' : 'btn-secondary'"><span class="btn-label">Today</span></a>
+                <a th:href="@{/reports(preset='week')}" class="btn px-4 text-sm"
+                   th:classappend="${selectedPreset == 'week'} ? 'btn-primary' : 'btn-secondary'"><span class="btn-label">This Week</span></a>
+                <a th:href="@{/reports(preset='month')}" class="btn px-4 text-sm"
+                   th:classappend="${selectedPreset == 'month'} ? 'btn-primary' : 'btn-secondary'"><span class="btn-label">This Month</span></a>
+                <a th:href="@{/reports(preset='all')}" class="btn px-4 text-sm"
+                   th:classappend="${selectedPreset == 'all'} ? 'btn-primary' : 'btn-secondary'"><span class="btn-label">All Time</span></a>
             </div>
             <div class="flex flex-wrap items-end gap-2">
                 <div>
-                    <label for="from" class="block text-xs font-semibold text-muted-foreground mb-1">From</label>
+                    <label for="from" class="field-label" style="margin-bottom:.25rem;">From</label>
                     <input type="date" id="from" name="from" class="uk-input uk-form-small"
                            th:value="${customFrom}" placeholder="From">
                 </div>
                 <div>
-                    <label for="to" class="block text-xs font-semibold text-muted-foreground mb-1">To</label>
+                    <label for="to" class="field-label" style="margin-bottom:.25rem;">To</label>
                     <input type="date" id="to" name="to" class="uk-input uk-form-small"
                            th:value="${customTo}" placeholder="To">
                 </div>
-                <button type="submit" class="btn-primary px-4 py-2 text-sm font-semibold">Apply</button>
+                <button type="submit" class="btn btn-primary px-4 text-sm"><span class="btn-label">Apply</span></button>
             </div>
         </form>
     </section>
@@ -194,27 +54,27 @@
     <section class="mb-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Stat: Total Sales -->
-            <div class="stat-card p-5">
+            <div class="card p-5">
                 <div class="flex items-center gap-3">
-                    <div class="stat-icon" style="background:#dbeafe; color:#1e40af;">
+                    <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm text-muted-foreground">Total Sales</p>
-                        <p class="text-2xl font-extrabold" th:text="${#numbers.formatDecimal(report.totalSales, 1, 2)}">0.00</p>
+                        <p class="text-sm text-muted">Total Sales</p>
+                        <p class="text-2xl font-extrabold num" th:text="'$' + ${#numbers.formatDecimal(report.totalSales, 1, 2)}">$0.00</p>
                     </div>
                 </div>
             </div>
 
             <!-- Stat: Total Orders -->
-            <div class="stat-card p-5">
+            <div class="card p-5">
                 <div class="flex items-center gap-3">
-                    <div class="stat-icon" style="background:#dcfce7; color:#166534;">
+                    <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm text-muted-foreground">Total Orders</p>
-                        <p class="text-2xl font-extrabold" th:text="${report.orderCount}">0</p>
+                        <p class="text-sm text-muted">Total Orders</p>
+                        <p class="text-2xl font-extrabold num" th:text="${report.orderCount}">0</p>
                     </div>
                 </div>
             </div>
@@ -222,19 +82,21 @@
     </section>
 
     <!-- Date range caption -->
-    <p class="text-sm text-muted-foreground mb-4">
+    <p class="text-sm text-muted mb-4">
         Showing data from
-        <strong class="font-semibold text-foreground" th:text="${#temporals.format(report.from, 'yyyy-MM-dd HH:mm')}">2026-07-23 00:00</strong>
+        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.from, 'yyyy-MM-dd HH:mm')}">2026-07-23 00:00</strong>
         to
-        <strong class="font-semibold text-foreground" th:text="${#temporals.format(report.to, 'yyyy-MM-dd HH:mm')}">2026-07-23 23:59</strong>.
+        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.to, 'yyyy-MM-dd HH:mm')}">2026-07-23 23:59</strong>.
     </p>
 
     <!-- Top 5 items -->
-    <section class="stat-card p-6 sm:p-8">
+    <section class="card card-pad">
         <h2 class="text-lg font-bold mb-4">Top Selling Items</h2>
-        <!-- Horizontal scroll on small screens: matches the proven overflow pattern
-             used by Orders/Menu/Inventory so wide tables never break at mobile widths. -->
-        <div class="uk-overflow-auto">
+        <div th:if="${#lists.isEmpty(report.topItems)}" class="empty-state" style="padding:2rem 1.5rem;">
+            <p style="color:var(--muted);font-size:.9rem;">No sales data for this period.</p>
+        </div>
+        <!-- Horizontal scroll on small screens so wide tables never break at mobile widths. -->
+        <div class="table-wrap" th:unless="${#lists.isEmpty(report.topItems)}">
             <table class="uk-table uk-table-middle">
                 <thead>
                 <tr>
@@ -244,13 +106,10 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:if="${#lists.isEmpty(report.topItems)}">
-                    <td colspan="3" class="uk-text-center uk-text-muted">No sales data for this period.</td>
-                </tr>
                 <tr th:each="item, stat : ${report.topItems}">
-                    <td th:text="${stat.count}">1</td>
+                    <td class="num" th:text="${stat.count}">1</td>
                     <td class="font-semibold" th:text="${item.itemName}">Latte</td>
-                    <td class="uk-text-right font-medium" th:text="${item.totalQuantity}">5</td>
+                    <td class="uk-text-right font-medium num" th:text="${item.totalQuantity}">5</td>
                 </tr>
                 </tbody>
             </table>

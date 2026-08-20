@@ -1,200 +1,30 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Inventory - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/js/core.iife.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        /* ─── Base ─────────────────────────────────────────────── */
-        /* All interactive/color styling lives in raw CSS because
-           Franken UI v2.1.2 utilities.min.css exposes only semantic
-           token colors (bg-background, text-foreground, etc.) and
-           no shadow/transition/transform utilities.               */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
-            color: #111827;            /* gray-900 */
-        }
-
-        /* ─── Page header ──────────────────────────────────────── */
-        .dash-hero {
-            background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #374151 100%);
-            color: #fff;
-            border-radius: 1.25rem;
-        }
-
-        /* ─── Card style ───────────────────────────────────────── */
-        .stat-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            border-radius: 1.25rem;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        box-shadow 0.25s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.18);
-        }
-
-        /* ─── Bouncy button (consistent with menu/orders/home) ── */
-        .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #111827; /* gray-900 */
-            color: #ffffff;
-            border: none;
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-primary:hover {
-            background-color: #374151; /* gray-700 */
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
-        }
-        .btn-primary:active {
-            transform: translateY(0) scale(0.95);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-            transition: transform 0.08s ease;
-        }
-        .btn-primary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Secondary button ─────────────────────────────────── */
-        .btn-secondary {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            background-color: #ffffff;
-            color: #111827;
-            border: 1px solid #e5e7eb; /* gray-200 */
-            cursor: pointer;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        background-color 0.25s ease,
-                        box-shadow 0.25s ease;
-        }
-        .btn-secondary:hover {
-            background-color: #f9fafb; /* gray-50 */
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-        }
-        .btn-secondary:active {
-            transform: translateY(0) scale(0.97);
-            transition: transform 0.08s ease;
-        }
-        .btn-secondary:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #6b7280;
-        }
-
-        /* ─── Status pill ─────────────────────────────────────── */
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .pill-warn {
-            background-color: #fef3c7; /* yellow-100 */
-            color: #92400e;            /* yellow-800 */
-            border: 1px solid #fde68a; /* yellow-200 */
-        }
-        .pill-ok {
-            background-color: #dcfce7; /* green-100 */
-            color: #166534;            /* green-800 */
-            border: 1px solid #bbf7d0; /* green-200 */
-        }
-        .pill-danger {
-            background-color: #fee2e2; /* red-100 */
-            color: #991b1b;            /* red-800 */
-            border: 1px solid #fecaca; /* red-200 */
-        }
-        .pill-muted {
-            background-color: #f3f4f6; /* gray-100 */
-            color: #374151;            /* gray-700 */
-            border: 1px solid #e5e7eb; /* gray-200 */
-        }
-
-        /* ─── Low-stock row highlight ──────────────────────────── */
-        .row-low-stock {
-            background-color: #fffbeb; /* amber-50 */
-        }
-        .row-low-stock:hover {
-            background-color: #fef3c7; /* amber-100 */
-        }
-
-        /* ─── Stock-level indicator bar ───────────────────────── */
-        .stock-bar-track {
-            height: 6px;
-            max-width: 8rem;
-            background-color: #e5e7eb; /* gray-200 */
-            border-radius: 9999px;
-            overflow: hidden;
-            margin-top: 0.25rem;
-        }
-        .stock-bar-fill {
-            height: 100%;
-            border-radius: 9999px;
-            transition: width 0.3s ease;
-        }
-        .stock-bar-fill.fill-ok {
-            background-color: #22c55e; /* green-500 */
-        }
-        .stock-bar-fill.fill-warn {
-            background-color: #f59e0b; /* amber-500 */
-        }
-
-        /* ─── Inline edit form ─────────────────────────────────── */
-        .edit-form-row {
-            background-color: #f9fafb; /* gray-50 */
-        }
-        /* Ensure the hidden attribute truly hides toggled divs even
-           when an inner .uk-card sets display:block (which otherwise
-           overrides the UA's [hidden] { display:none }). */
-        [hidden] {
-            display: none !important;
-        }
-    </style>
-</head>
+<head th:replace="~{fragments/layout :: head(title='Inventory')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='inventory')}"></nav>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
-    <!-- Page header -->
-    <section class="dash-hero p-6 sm:p-8 mb-8">
+    <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-                <p class="text-sm font-medium uppercase tracking-wider opacity-50 mb-1">Cafe ERP</p>
+                <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Inventory</h1>
-                <p class="text-sm opacity-50 mt-1">Live stock levels, thresholds, and reorder alerts for every menu item.</p>
+                <p class="subtitle text-sm mt-1">Live stock levels, thresholds, and reorder alerts for every menu item.</p>
             </div>
         </div>
     </section>
 
     <!-- Inventory table -->
-    <section class="stat-card p-6 sm:p-8">
-        <div class="uk-overflow-auto">
+    <section class="card card-pad">
+        <div th:if="${#lists.isEmpty(inventoryList)}" class="empty-state">
+            <div class="icon-tile">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </div>
+            <h3>No inventory records yet</h3>
+            <p>Inventory records are created automatically as menu items are added.</p>
+        </div>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(inventoryList)}">
             <table class="uk-table uk-table-middle">
                 <thead>
                 <tr>
@@ -209,70 +39,65 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:if="${#lists.isEmpty(inventoryList)}">
-                    <td colspan="8" class="uk-text-center uk-text-muted">No inventory records yet.</td>
-                </tr>
                 <th:block th:each="inv : ${inventoryList}">
                     <!-- Data row -->
-                    <tr th:classappend="${inv.trackInventory && inv.stockQuantity <= inv.lowStockThreshold} ? 'row-low-stock' : ''">
+                    <tr th:classappend="${inv.trackInventory && inv.stockQuantity <= inv.lowStockThreshold} ? 'row-flag-warn' : ''">
                         <td class="font-semibold" th:text="${inv.menuItem.name}">Cappuccino</td>
-                        <td class="text-sm text-muted-foreground" th:text="${inv.menuItem.category.name}">Beverages</td>
+                        <td class="text-sm text-muted" th:text="${inv.menuItem.category.name}">Beverages</td>
                         <td>
-                            <span class="pill pill-ok" th:if="${inv.trackInventory}">On</span>
-                            <span class="pill pill-muted" th:unless="${inv.trackInventory}">Off</span>
+                            <span class="badge badge-success" th:if="${inv.trackInventory}">On</span>
+                            <span class="badge badge-neutral" th:unless="${inv.trackInventory}">Off</span>
                         </td>
                         <td>
-                            <span class="font-bold" th:text="${inv.stockQuantity}">10</span>
+                            <span class="font-bold num" th:text="${inv.stockQuantity}">10</span>
                             <!-- Scannable stock-level bar: width = stock ÷ threshold, capped at 100% -->
                             <div class="stock-bar-track" th:if="${inv.trackInventory}">
                                 <div class="stock-bar-fill"
-                                     th:classappend="${inv.stockQuantity <= inv.lowStockThreshold} ? 'fill-warn' : 'fill-ok'"
+                                     th:classappend="${inv.stockQuantity <= 0} ? 'fill-danger' : (${inv.stockQuantity <= inv.lowStockThreshold} ? 'fill-warn' : 'fill-ok')"
                                      th:style="'width: ' + (${inv.lowStockThreshold == 0 ? 100 : (inv.stockQuantity >= inv.lowStockThreshold ? 100 : inv.stockQuantity * 100 / inv.lowStockThreshold)}) + '%'"></div>
                             </div>
                         </td>
-                        <td class="text-sm font-medium" th:text="${inv.lowStockThreshold}">5</td>
+                        <td class="text-sm font-medium num" th:text="${inv.lowStockThreshold}">5</td>
                         <td>
-                            <span class="pill pill-danger" th:if="${inv.trackInventory && inv.stockQuantity <= 0}">Out of Stock</span>
-                            <span class="pill pill-warn" th:if="${inv.trackInventory && inv.stockQuantity > 0 && inv.stockQuantity <= inv.lowStockThreshold}">Low Stock</span>
-                            <span class="pill pill-ok" th:if="${inv.trackInventory && inv.stockQuantity > inv.lowStockThreshold}">In Stock</span>
-                            <span class="pill pill-muted" th:unless="${inv.trackInventory}">Not Tracking</span>
+                            <span class="badge badge-danger" th:if="${inv.trackInventory && inv.stockQuantity <= 0}">Out of Stock</span>
+                            <span class="badge badge-warn" th:if="${inv.trackInventory && inv.stockQuantity > 0 && inv.stockQuantity <= inv.lowStockThreshold}">Low Stock</span>
+                            <span class="badge badge-success" th:if="${inv.trackInventory && inv.stockQuantity > inv.lowStockThreshold}">In Stock</span>
+                            <span class="badge badge-neutral" th:unless="${inv.trackInventory}">Not Tracking</span>
                         </td>
-                        <td th:text="${inv.lastUpdatedAt != null ? #temporals.format(inv.lastUpdatedAt, 'yyyy-MM-dd HH:mm') : '—'}" class="text-sm">2026-07-14 18:00</td>
+                        <td th:text="${inv.lastUpdatedAt != null ? #temporals.format(inv.lastUpdatedAt, 'yyyy-MM-dd HH:mm') : '—'}" class="text-sm text-muted num">2026-07-14 18:00</td>
                         <td class="uk-text-right">
-                            <button class="btn-secondary px-4 py-2 text-sm font-semibold" type="button"
-                                    data-edit-toggle th:attr="data-edit-target='edit-' + ${inv.id}">
-                                Edit
+                            <button class="btn btn-secondary px-4 text-sm" type="button"
+                                    data-edit-toggle th:attr="data-edit-target='edit-' + ${inv.id}" aria-expanded="false" th:aria-controls="'edit-' + ${inv.id}">
+                                <span class="btn-label">Edit</span>
                             </button>
                         </td>
                     </tr>
                     <!-- Inline edit row -->
                     <tr class="edit-form-row">
                         <td colspan="8" class="uk-padding-remove">
-                            <div th:id="'edit-' + ${inv.id}" hidden>
-                                <div class="uk-card uk-card-body uk-card-default uk-margin-small">
-                                    <form th:action="@{/inventory/update/{id}(id=${inv.id})}" method="post" class="uk-grid-small" uk-grid>
-                                        <div class="uk-width-auto">
-                                            <label class="uk-form-label uk-text-small">Track Inventory</label>
-                                            <select name="trackInventory" class="uk-select uk-form-small">
-                                                <option value="true" th:selected="${inv.trackInventory}">On</option>
-                                                <option value="false" th:selected="${!inv.trackInventory}">Off</option>
-                                            </select>
-                                        </div>
-                                        <div class="uk-width-auto">
-                                            <label class="uk-form-label uk-text-small">Stock Quantity</label>
-                                            <input type="number" name="stockQuantity" class="uk-input uk-form-small"
-                                                   th:value="${inv.stockQuantity}" min="0" required>
-                                        </div>
-                                        <div class="uk-width-auto">
-                                            <label class="uk-form-label uk-text-small">Low Stock Threshold</label>
-                                            <input type="number" name="lowStockThreshold" class="uk-input uk-form-small"
-                                                   th:value="${inv.lowStockThreshold}" min="0" required>
-                                        </div>
-                                        <div class="uk-width-auto uk-flex uk-flex-bottom">
-                                            <button type="submit" class="btn-primary px-4 py-2 text-sm font-semibold">Save</button>
-                                        </div>
-                                    </form>
-                                </div>
+                            <div th:id="'edit-' + ${inv.id}" hidden class="p-4">
+                                <form th:action="@{/inventory/update/{id}(id=${inv.id})}" method="post" class="flex flex-wrap items-end gap-3">
+                                    <div>
+                                        <label class="field-label">Track Inventory</label>
+                                        <select name="trackInventory" class="uk-select uk-form-small">
+                                            <option value="true" th:selected="${inv.trackInventory}">On</option>
+                                            <option value="false" th:selected="${!inv.trackInventory}">Off</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="field-label">Stock Quantity</label>
+                                        <input type="number" name="stockQuantity" class="uk-input uk-form-small"
+                                               th:value="${inv.stockQuantity}" min="0" required>
+                                    </div>
+                                    <div>
+                                        <label class="field-label">Low Stock Threshold</label>
+                                        <input type="number" name="lowStockThreshold" class="uk-input uk-form-small"
+                                               th:value="${inv.lowStockThreshold}" min="0" required>
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-primary px-4 text-sm"><span class="btn-label">Save</span></button>
+                                    </div>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -286,9 +111,8 @@
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
 
 <!-- Inline edit toggle: vanilla JS since Franken UI v2.1.2 ships no uk-toggle
-     handler (the literal "uk-toggle" is absent from core.iife.js). Mirrors the
-     vanilla-JS pattern used for the mobile nav drawer in fragments/layout.html. -->
-<script>
+     handler. Mirrors the vanilla-JS pattern used elsewhere in the app. -->
+<script th:inline="none">
     (function () {
         var toggles = document.querySelectorAll('[data-edit-toggle]');
         toggles.forEach(function (btn) {
@@ -298,6 +122,7 @@
                 var target = document.getElementById(targetId);
                 if (target) {
                     target.hidden = !target.hidden;
+                    btn.setAttribute('aria-expanded', String(!target.hidden));
                 }
             });
         });

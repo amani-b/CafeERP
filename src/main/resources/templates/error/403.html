@@ -1,23 +1,18 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Access Denied - Cafe ERP</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css">
-</head>
+<head th:replace="~{fragments/layout :: head(title='Access Denied')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: nav(activePage='dashboard')}"></nav>
 
-<main class="uk-container uk-margin-top">
-    <div class="uk-flex uk-flex-center">
-        <div class="uk-width-large uk-text-center">
-            <h1 class="uk-heading-primary uk-margin-remove">403</h1>
-            <h2 class="uk-h3">Access Denied</h2>
-            <p class="uk-text-muted">You don't have permission to access this page.</p>
-            <a class="uk-button uk-button-primary" th:href="@{/}">Back to Dashboard</a>
+<main class="uk-container flex items-center justify-center" style="min-height:60vh;">
+    <div class="text-center" style="max-width:26rem;">
+        <div class="icon-tile icon-tile--danger mx-auto mb-4" style="width:3.5rem;height:3.5rem;border-radius:999px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
         </div>
+        <p class="font-extrabold num" style="font-size:2.5rem;line-height:1;color:var(--line-strong);">403</p>
+        <h2 class="text-xl font-bold mt-2">Access Denied</h2>
+        <p class="text-sm text-muted mt-2">You don't have permission to access this page.</p>
+        <a class="btn btn-primary px-5 text-sm mt-6" th:href="@{/}"><span class="btn-label">Back to Dashboard</span></a>
     </div>
 </main>
 
