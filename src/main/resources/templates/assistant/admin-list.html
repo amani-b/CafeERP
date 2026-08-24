@@ -1,8 +1,10 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(title='Assistant Logs')}"></head>
-<body>
-<nav th:replace="~{fragments/layout :: nav(activePage='assistant-admin')}"></nav>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='assistant-admin')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='assistant-admin')}"></div>
 
 <main class="uk-container max-w-7xl mx-auto px-4 py-8">
     <!-- Page header -->

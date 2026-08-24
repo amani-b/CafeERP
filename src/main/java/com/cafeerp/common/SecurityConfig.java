@@ -31,7 +31,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.ignoringRequestMatchers("/assistant/chat"))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/login", "/login-error", "/css/**", "/actuator/health").permitAll()
+                .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health").permitAll()
                 .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**", "/assistant/admin/**", "/admin/assistant/**", "/users/**").hasRole("ADMIN")
                 .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
