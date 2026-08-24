@@ -14,7 +14,14 @@
    full rationale and token reference.
    ============================================================ */
 
-@layer tokens, base, layout, components, forms, table, kitchen, chat, utilities, print;
+@layer franken, tokens, base, layout, components, forms, table, kitchen, chat, utilities, sidebar, print;
+
+/* Explicitly import Franken UI CSS into the `franken` layer so it
+   participates in the cascade order above. This ensures app.css's
+   own layers (components, utilities, sidebar, etc.) always win over
+   any unlayered or lower-priority rules from the CDN stylesheets. */
+@import url("https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/core.min.css") layer(franken);
+@import url("https://cdn.jsdelivr.net/npm/franken-ui@2.1.2/dist/css/utilities.min.css") layer(franken);
 
 @layer tokens {
   :root {
@@ -805,6 +812,11 @@
 
     .mobile-offcanvas {
       display: none;
+    }
+
+    /* Desktop content offset: push main content right to clear the fixed sidebar */
+    body.authenticated main {
+      margin-left: 260px;
     }
   }
 }
