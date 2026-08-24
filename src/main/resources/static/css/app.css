@@ -788,6 +788,21 @@
   .offcanvas-footer {
     padding: 1rem 1.25rem;
     border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .offcanvas-footer .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+  }
+
+  .offcanvas-footer .btn svg {
+    flex-shrink: 0;
   }
 
   /* Responsive breakpoints */
