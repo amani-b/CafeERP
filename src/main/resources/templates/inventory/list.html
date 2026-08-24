@@ -66,7 +66,7 @@
                             <span class="badge badge-success" th:if="${inv.trackInventory && inv.stockQuantity > inv.lowStockThreshold}">In Stock</span>
                             <span class="badge badge-neutral" th:unless="${inv.trackInventory}">Not Tracking</span>
                         </td>
-                        <td th:text="${inv.lastUpdatedAt != null ? #temporals.format(inv.lastUpdatedAt, 'yyyy-MM-dd HH:mm') : '—'}" class="text-sm text-muted num">2026-07-14 18:00</td>
+                        <td th:text="${inv.lastUpdatedAt != null ? #temporals.format(inv.lastUpdatedAt, 'yyyy-MM-dd hh:mm a') : '—'}" class="text-sm text-muted num">2026-07-14 18:00</td>
                         <td class="uk-text-right">
                             <button class="btn btn-secondary px-4 text-sm" type="button"
                                     data-edit-toggle th:attr="data-edit-target='edit-' + ${inv.id}" aria-expanded="false" th:aria-controls="'edit-' + ${inv.id}">

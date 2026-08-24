@@ -42,7 +42,7 @@
                           th:text="${order.status}">PENDING</span>
                 </div>
                 <small class="text-sm font-semibold text-muted num whitespace-nowrap"
-                       th:text="${#temporals.format(order.createdAt, 'HH:mm')}">08:00</small>
+                       th:text="${#temporals.format(order.createdAt, 'hh:mm a')}">08:00</small>
             </div>
 
             <div class="ticket-tear"></div>

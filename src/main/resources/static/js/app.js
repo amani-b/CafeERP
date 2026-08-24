@@ -70,6 +70,40 @@
     }
   });
 
+  /* ---- Password visibility toggle --------------------------- */
+  function initPasswordToggle(container) {
+    var scope = container || document;
+    var toggleButtons = scope.querySelectorAll('.toggle-password-btn, #toggle-login-password');
+    
+    toggleButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var wrapper = btn.closest('.password-input-wrapper');
+        if (!wrapper) return;
+        
+        var input = wrapper.querySelector('input[type="password"], input[type="text"]');
+        if (!input) return;
+        
+        var eyeIcon = btn.querySelector('.eye-icon');
+        var eyeOffIcon = btn.querySelector('.eye-off-icon');
+        
+        if (input.type === 'password') {
+          input.type = 'text';
+          if (eyeIcon) eyeIcon.style.display = 'none';
+          if (eyeOffIcon) eyeOffIcon.style.display = 'inline';
+        } else {
+          input.type = 'password';
+          if (eyeIcon) eyeIcon.style.display = 'inline';
+          if (eyeOffIcon) eyeOffIcon.style.display = 'none';
+        }
+      });
+    });
+  }
+  
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    initPasswordToggle();
+  });
+
   /* ---- Submit-button loading state -------------------------
      Prevents accidental double-submits (e.g. tapping "Create
      Order" twice on a slow connection) and gives visible
