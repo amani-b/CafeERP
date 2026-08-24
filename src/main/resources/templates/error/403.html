@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(title='Access Denied')}"></head>
-<body>
-<nav th:replace="~{fragments/layout :: nav(activePage='dashboard')}"></nav>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='dashboard')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='dashboard')}"></div>
 
-<main class="uk-container flex items-center justify-center" style="min-height:60vh;">
+<main class="uk-container flex items-center justify-center app-main" style="min-height:60vh;">
     <div class="text-center" style="max-width:26rem;">
         <div class="icon-tile icon-tile--danger mx-auto mb-4" style="width:3.5rem;height:3.5rem;border-radius:999px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
