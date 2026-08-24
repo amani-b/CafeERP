@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(title='Receipt #' + ${order.id})}"></head>
-<body>
-<nav th:replace="~{fragments/layout :: nav(activePage='orders')}" class="no-print"></nav>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='orders')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='orders')}"></div>
 
-<main class="uk-container uk-margin-top receipt-container" style="max-width:32rem;">
+<main class="uk-container uk-margin-top receipt-container app-main" style="max-width:32rem;">
     <div class="no-print uk-margin-bottom flex flex-wrap items-center gap-3">
         <a class="btn btn-secondary px-4 text-sm" th:href="@{/orders}"><span class="btn-label">&larr; Back to Orders</span></a>
         <button class="btn btn-primary px-4 text-sm" onclick="window.print()"><span class="btn-label">Print</span></button>
