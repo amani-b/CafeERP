@@ -815,7 +815,7 @@
     }
 
     /* Desktop content offset: push main content right to clear the fixed sidebar */
-    body.authenticated main {
+    .app-main {
       margin-left: 260px;
     }
   }
