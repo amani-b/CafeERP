@@ -86,9 +86,9 @@
     <!-- Date range caption -->
     <p class="text-sm text-muted mb-4">
         Showing data from
-        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.from, 'yyyy-MM-dd HH:mm')}">2026-07-23 00:00</strong>
+        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.from, 'yyyy-MM-dd hh:mm a')}">2026-07-23 00:00</strong>
         to
-        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.to, 'yyyy-MM-dd HH:mm')}">2026-07-23 23:59</strong>.
+        <strong class="font-semibold num" style="color:var(--ink);" th:text="${#temporals.format(report.to, 'yyyy-MM-dd hh:mm a')}">2026-07-23 23:59</strong>.
     </p>
 
     <!-- Top 5 items -->
