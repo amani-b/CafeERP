@@ -39,7 +39,36 @@
         if (mobileNavToggle) mobileNavToggle.focus();
       }
     });
+
+    // Close mobile nav when a link is clicked (smoothly)
+    if (mobileNavPanel) {
+      var links = mobileNavPanel.querySelectorAll('a');
+      links.forEach(function (link) {
+        link.addEventListener('click', function () {
+          // Add a small delay to allow visual feedback before closing/navigation
+          setTimeout(closeMobileNav, 150);
+        });
+      });
+    }
   }
+
+  /* ---- Scroll active nav link into view on page load --------
+     Ensures the currently active page's nav item is visible
+     and centered in the sidebar, especially useful for longer
+     menus or when scrolling has occurred. */
+  document.addEventListener('DOMContentLoaded', function () {
+    var sidebar = document.querySelector('.app-sidebar nav');
+    var activeLink = sidebar ? sidebar.querySelector('li.active a, li.active-page a') : null;
+    
+    if (sidebar && activeLink) {
+      // Smooth scroll the active link into the center of the sidebar view
+      activeLink.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest'
+      });
+    }
+  });
 
   /* ---- Submit-button loading state -------------------------
      Prevents accidental double-submits (e.g. tapping "Create
