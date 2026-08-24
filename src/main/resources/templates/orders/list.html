@@ -1,10 +1,12 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/layout :: head(title='Orders')}"></head>
-<body>
-<nav th:replace="~{fragments/layout :: nav(activePage='orders')}"></nav>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='orders')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='orders')}"></div>
 
-<main class="uk-container max-w-7xl mx-auto px-4 py-8">
+<main class="uk-container max-w-7xl mx-auto px-4 py-8 app-main">
     <!-- Page header -->
     <section class="page-header card-pad mb-8">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
