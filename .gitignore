@@ -1,31 +1,43 @@
-# Maven build output
-/target/
+```
+# Compiled and build artifacts
+*.class
+*.o
+*.obj
+*.out
+build/
+target/
 
-# IDE settings
-/.idea/
-/.vscode/
-*.iml
+# Dependencies
+.gradle/
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+node_modules/
+venv/
+.venv/
 
-# OS files
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# OS
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Local environment files
-.env
-.env.*
-
-# Cookies / session dumps
-cookies.txt
-
-# AI / agent tooling config
-.agents/
-.continue/
-
-# Logs
-app.log
-
-# Zip archives / backups
-*.zip
+```
