@@ -36,7 +36,8 @@ public class DeterministicFallbackHandler {
     private final InventoryService inventoryService;
     private final AssistantToolRegistry toolRegistry;
 
-    private static final Pattern ORDER_ID_PATTERN = Pattern.compile("#?(\\d+)");
+    // Package-private for access by AssistantService's routing classifier
+    static final Pattern ORDER_ID_PATTERN = Pattern.compile("#?(\\d+)");
 
     public DeterministicFallbackHandler(OrderService orderService,
                                         MenuService menuService,
