@@ -44,13 +44,13 @@
 
         <hr class="uk-divider-icon">
 
-        <div class="uk-grid-small" uk-grid>
-            <div class="uk-width-1-2"><strong>Items:</strong></div>
-            <div class="uk-width-1-2 uk-text-right num" th:text="${order.itemCount}">3</div>
+        <div class="flex items-center justify-between py-2 border-t border-dashed" style="border-color: var(--line);">
+            <strong>Items:</strong>
+            <span class="num" th:text="${order.itemCount}">3</span>
         </div>
-        <div class="uk-grid-small" uk-grid>
-            <div class="uk-width-1-2"><strong>Total:</strong></div>
-            <div class="uk-width-1-2 uk-text-right num font-extrabold" th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">10.50</div>
+        <div class="flex items-center justify-between py-2 border-b border-dashed" style="border-color: var(--line);">
+            <strong>Total:</strong>
+            <span class="num font-extrabold" th:text="${#numbers.formatDecimal(order.totalAmount, 1, 2)}">10.50</span>
         </div>
     </div>
 </main>

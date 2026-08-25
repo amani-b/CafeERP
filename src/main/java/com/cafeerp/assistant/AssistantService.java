@@ -67,11 +67,11 @@ public class AssistantService {
      * Order of operations:
      * <ol>
      *   <li>Persist the user's message</li>
-     *   <li>Try Tier 2 deterministic pattern-matching first — if a known pattern
-     *       matches, answer immediately without calling any AI provider</li>
-     *   <li>If no Tier 2 pattern matched, fall through to the Groq → Gemini → OpenRouter
-     *       provider chain for genuine natural-language understanding</li>
-     *   <li>If every provider fails, return a graceful "unavailable" message
+     *   <li>Try the Groq → Gemini → OpenRouter provider chain FIRST for genuine
+     *       natural-language understanding</li>
+     *   <li>If every provider fails, fall back to Tier 2 deterministic pattern-matching
+     *       — if a known pattern matches, answer immediately without AI</li>
+     *   <li>If Tier 2 also finds no pattern match, return a graceful "unavailable" message
      *       that lists what the user CAN ask about directly</li>
      * </ol>
      */
@@ -80,20 +80,10 @@ public class AssistantService {
         // 1. Persist the user's message
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.USER, userMessage));
 
-        // 2. Try Tier 2 deterministic pattern-matching FIRST
-        //    (before any AI provider call — most real staff queries match here)
-        AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
-        if (tier2Reply != null) {
-            log.debug("Tier 2 matched query for user '{}': pattern={}",
-                    user.getUsername(), userMessage);
-            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
-            return tier2Reply;
-        }
-
-        // 3. No Tier 2 match — load conversation history for AI providers
+        // 2. Load conversation history for AI providers
         List<AssistantMessage> history = messageRepository.findByUserOrderByCreatedAtAsc(user);
 
-        // 4. Build the messages array for the API
+        // 3. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
 
         // System prompt (role-specific)
@@ -110,11 +100,11 @@ public class AssistantService {
             messages.add(m);
         }
 
-        // 5. Determine role-appropriate tools
+        // 4. Determine role-appropriate tools
         List<Map<String, Object>> tools = toolsForRole(user.getRole());
         Set<String> allowedToolNames = toolRegistry.allowedToolNamesForRole(user.getRole());
 
-        // 6. Try each provider in order
+        // 5. Try each provider in order — provider chain runs FIRST
         for (ModelProvider provider : providers) {
             if (!provider.hasApiKey()) {
                 log.warn("Skipping provider {}: API key not set (env var {})",
@@ -129,8 +119,18 @@ public class AssistantService {
             }
         }
 
-        // 7. All providers failed — return unavailable message
-        log.warn("All AI providers failed for user '{}'; returning unavailable message", user.getUsername());
+        // 6. All providers failed — try Tier 2 deterministic fallback
+        log.warn("All AI providers failed for user '{}'; trying Tier 2 fallback", user.getUsername());
+        AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
+        if (tier2Reply != null) {
+            log.debug("Tier 2 matched query for user '{}': pattern={}",
+                    user.getUsername(), userMessage);
+            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+            return tier2Reply;
+        }
+
+        // 7. Tier 2 also found no match — return unavailable message
+        log.warn("Tier 2 fallback also found no match for user '{}'; returning unavailable message", user.getUsername());
         AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole());
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text()));
         return unavailable;
@@ -291,13 +291,19 @@ public class AssistantService {
                 + "using the tools available to you. Only answer using data returned by tool calls you actually made. "
                 + "If a question needs information outside your available tools, say plainly that you don't have "
                 + "access to that information and suggest asking a manager or admin. Never estimate, guess, or "
-                + "answer from general knowledge. Never discuss what tools or capabilities other roles have.";
+                + "answer from general knowledge. Never discuss what tools or capabilities other roles have. "
+                + "Respond in clean, professional Markdown: use short paragraphs, **bold** for key numbers and labels, "
+                + "real Markdown bullet lists only where a list genuinely helps, and Markdown tables (| col | col |) "
+                + "for structured data like menu items, inventory levels, or sales breakdowns — not walls of plain text.";
             case ADMIN ->
                 "You are a helpful cafe assistant with access to sales reports, inventory, and kitchen queue data. "
                 + "Only answer using data returned by tool calls you actually made. If a question needs information "
                 + "outside your available tools, say plainly that you don't have access to that information. "
                 + "Never estimate, guess, or answer from general knowledge. Never discuss what tools or capabilities "
-                + "other roles have.";
+                + "other roles have. "
+                + "Respond in clean, professional Markdown: use short paragraphs, **bold** for key numbers and labels, "
+                + "real Markdown bullet lists only where a list genuinely helps, and Markdown tables (| col | col |) "
+                + "for structured data like menu items, inventory levels, or sales breakdowns — not walls of plain text.";
         };
     }
 
