@@ -788,7 +788,8 @@
     left: 0;
     width: 280px;
     max-width: 85vw;
-    height: 100vh;
+    height: 100vh; /* fallback for older browsers */
+    height: 100dvh; /* actual visible viewport on mobile, updates as browser chrome shows/hides */
     background: var(--paper);
     z-index: 1001;
     transform: translateX(-100%);
