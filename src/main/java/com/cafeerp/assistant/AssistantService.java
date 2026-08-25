@@ -67,12 +67,16 @@ public class AssistantService {
      * Order of operations:
      * <ol>
      *   <li>Persist the user's message</li>
-     *   <li>Try the Groq → Gemini → OpenRouter provider chain FIRST for genuine
-     *       natural-language understanding</li>
+     *   <li><b>Intelligent routing:</b> Check if this query matches a narrow set of
+     *       canonical patterns where deterministic pattern-matching produces a
+     *       clearer, safer answer than a generated one (e.g. exact order ID lookups).
+     *       If so, route directly to the deterministic handler — no AI call needed.</li>
+     *   <li>Otherwise: attempt the Groq → Gemini → OpenRouter provider chain for
+     *       genuine natural-language understanding with tool grounding.</li>
      *   <li>If every provider fails, fall back to Tier 2 deterministic pattern-matching
-     *       — if a known pattern matches, answer immediately without AI</li>
+     *       as a true fallback.</li>
      *   <li>If Tier 2 also finds no pattern match, return a graceful "unavailable" message
-     *       that lists what the user CAN ask about directly</li>
+     *       that lists what the user CAN ask about directly.</li>
      * </ol>
      */
     @Transactional
@@ -80,10 +84,27 @@ public class AssistantService {
         // 1. Persist the user's message
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.USER, userMessage));
 
-        // 2. Load conversation history for AI providers
+        // 2. Intelligent routing: check for canonical patterns that should bypass AI entirely.
+        //    This is NOT random or threshold-based — it's a rule-based decision:
+        //    - Exact order ID lookups (e.g. "order #123", "status of 456") are handled
+        //      deterministically because a fixed-format answer is objectively clearer
+        //      and safer than a generated one.
+        //    These rules are intentionally narrow; everything else goes to AI.
+        if (shouldRouteToDeterministicFirst(userMessage, user.getRole())) {
+            log.debug("Query matched canonical pattern; routing to deterministic handler first for user '{}'", user.getUsername());
+            AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
+            if (tier2Reply != null) {
+                messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+                return tier2Reply;
+            }
+            // Deterministic handler declined (shouldn't happen if shouldRouteToDeterministicFirst returned true,
+            // but fall through to AI just in case)
+        }
+
+        // 3. Load conversation history for AI providers
         List<AssistantMessage> history = messageRepository.findByUserOrderByCreatedAtAsc(user);
 
-        // 3. Build the messages array for the API
+        // 4. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
 
         // System prompt (role-specific)
@@ -100,11 +121,11 @@ public class AssistantService {
             messages.add(m);
         }
 
-        // 4. Determine role-appropriate tools
+        // 5. Determine role-appropriate tools
         List<Map<String, Object>> tools = toolsForRole(user.getRole());
         Set<String> allowedToolNames = toolRegistry.allowedToolNamesForRole(user.getRole());
 
-        // 5. Try each provider in order — provider chain runs FIRST
+        // 6. Try each provider in order — AI path for non-canonical queries
         for (ModelProvider provider : providers) {
             if (!provider.hasApiKey()) {
                 log.warn("Skipping provider {}: API key not set (env var {})",
@@ -119,7 +140,7 @@ public class AssistantService {
             }
         }
 
-        // 6. All providers failed — try Tier 2 deterministic fallback
+        // 7. All providers failed — try Tier 2 deterministic fallback
         log.warn("All AI providers failed for user '{}'; trying Tier 2 fallback", user.getUsername());
         AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
         if (tier2Reply != null) {
@@ -129,11 +150,33 @@ public class AssistantService {
             return tier2Reply;
         }
 
-        // 7. Tier 2 also found no match — return unavailable message
+        // 8. Tier 2 also found no match — return unavailable message
         log.warn("Tier 2 fallback also found no match for user '{}'; returning unavailable message", user.getUsername());
         AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole());
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text()));
         return unavailable;
+    }
+
+    /**
+     * Rule-based classifier to decide if a query should bypass AI and go straight
+     * to the deterministic handler. Returns true only for narrow, unambiguous
+     * cases where a fixed-format answer is objectively clearer/safer than generated text.
+     * <p>
+     * Current rules (intentionally conservative):
+     * <ul>
+     *   <li>Exact order ID lookups: messages containing a numeric ID pattern like
+     *       "order #123", "order 456", "#789", etc.</li>
+     * </ul>
+     * Everything else returns false and goes through the AI provider chain.
+     */
+    private boolean shouldRouteToDeterministicFirst(String userMessage, Role role) {
+        Set<String> allowedTools = toolRegistry.allowedToolNamesForRole(role);
+        // Only route order lookups to deterministic first if the user has access to getOrderStatus
+        if (!allowedTools.contains("getOrderStatus")) {
+            return false;
+        }
+        // Match patterns like "order #123", "order 456", "#789", "status of 123"
+        return DeterministicFallbackHandler.ORDER_ID_PATTERN.matcher(userMessage).find();
     }
 
     /**
