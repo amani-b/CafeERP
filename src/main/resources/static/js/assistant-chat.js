@@ -29,7 +29,11 @@
 
         var textDiv = document.createElement('div');
         textDiv.className = 'msg-text';
-        textDiv.textContent = text;
+        if (role === 'assistant') {
+            textDiv.innerHTML = DOMPurify.sanitize(marked.parse(text));
+        } else {
+            textDiv.textContent = text;
+        }
         div.appendChild(textDiv);
 
         if (links && links.length > 0) {
