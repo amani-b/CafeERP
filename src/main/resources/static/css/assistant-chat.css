@@ -122,6 +122,18 @@
 .assistant-chat-msg.user .msg-text { background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
 .assistant-chat-msg.assistant .msg-text { background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 
+/* Rendered Markdown styles for assistant messages */
+.assistant-chat-msg.assistant .msg-text strong { font-weight: 700; }
+.assistant-chat-msg.assistant .msg-text ul { list-style: disc inside; margin: 0.5em 0; padding-left: 1em; }
+.assistant-chat-msg.assistant .msg-text li { margin: 0.25em 0; }
+.assistant-chat-msg.assistant .msg-text table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-family: var(--font-mono); font-size: 13px; }
+.assistant-chat-msg.assistant .msg-text th, .assistant-chat-msg.assistant .msg-text td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+.assistant-chat-msg.assistant .msg-text th { background: var(--surface-2); font-weight: 600; }
+.assistant-chat-msg.assistant .msg-text code { font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 1px 4px; border-radius: 3px; }
+.assistant-chat-msg.assistant .msg-text p { margin: 0.5em 0; }
+.assistant-chat-msg.assistant .msg-text p:first-child { margin-top: 0; }
+.assistant-chat-msg.assistant .msg-text p:last-child { margin-bottom: 0; }
+
 .assistant-chat-msg .msg-links { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
 .assistant-chat-msg .msg-links a {
     font-size: 12.5px;
