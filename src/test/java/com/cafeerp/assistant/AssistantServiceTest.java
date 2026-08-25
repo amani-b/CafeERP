@@ -189,21 +189,21 @@ class AssistantServiceTest {
         groq.setName("groq");
         groq.setBaseUrl("https://api.groq.com/openai/v1");
         groq.setApiKeyEnvVar("GROQ_API_KEY_NONEXISTENT");
-        groq.setModel("llama-3.3-70b-versatile");
+        groq.setModel("openai/gpt-oss-120b");
         groq.setSupportsMinTokens(false);
 
         ProviderConfig gemini = new ProviderConfig();
         gemini.setName("gemini");
-        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai");
         gemini.setApiKeyEnvVar("GEMINI_API_KEY_NONEXISTENT");
-        gemini.setModel("gemini-flash-latest");
+        gemini.setModel("gemini-2.0-flash");
         gemini.setSupportsMinTokens(false);
 
         ProviderConfig openrouter = new ProviderConfig();
         openrouter.setName("openrouter");
-        openrouter.setBaseUrl("https://openrouter.ai/api/v1/chat/completions");
+        openrouter.setBaseUrl("https://openrouter.ai/api/v1");
         openrouter.setApiKeyEnvVar("OPENROUTER_API_KEY_NONEXISTENT");
-        openrouter.setModel("inclusional/ling-3.0-flash:free");
+        openrouter.setModel("inclusionai/ling-3.0-flash:free");
         openrouter.setSupportsMinTokens(false);
 
         when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
@@ -232,21 +232,21 @@ class AssistantServiceTest {
         groq.setName("groq");
         groq.setBaseUrl("https://api.groq.com/openai/v1");
         groq.setApiKeyEnvVar("GROQ_API_KEY_NONEXISTENT");
-        groq.setModel("llama-3.3-70b-versatile");
+        groq.setModel("openai/gpt-oss-120b");
         groq.setSupportsMinTokens(false);
 
         ProviderConfig gemini = new ProviderConfig();
         gemini.setName("gemini");
-        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+        gemini.setBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai");
         gemini.setApiKeyEnvVar("GEMINI_API_KEY_NONEXISTENT");
-        gemini.setModel("gemini-flash-latest");
+        gemini.setModel("gemini-2.0-flash");
         gemini.setSupportsMinTokens(false);
 
         ProviderConfig openrouter = new ProviderConfig();
         openrouter.setName("openrouter");
-        openrouter.setBaseUrl("https://openrouter.ai/api/v1/chat/completions");
+        openrouter.setBaseUrl("https://openrouter.ai/api/v1");
         openrouter.setApiKeyEnvVar("OPENROUTER_API_KEY_NONEXISTENT");
-        openrouter.setModel("inclusional/ling-3.0-flash:free");
+        openrouter.setModel("inclusionai/ling-3.0-flash:free");
         openrouter.setSupportsMinTokens(false);
 
         when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
