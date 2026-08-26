@@ -1,6 +1,9 @@
 /* Floating assistant chat widget — consumes the shared tokens from
    app.css (loaded first). Kept as its own file since it is a
-   self-contained component with many descendant selectors. */
+   self-contained component with many descendant selectors.
+   All motion uses the shared --ease/--dur tokens; app.css collapses
+   --dur to ~0 under prefers-reduced-motion, and every keyframe
+   animation below is additionally wrapped in no-preference guards. */
 
 #assistant-chat-widget {
     position: fixed;
@@ -23,13 +26,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease);
+    transition: transform var(--dur) var(--ease), background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
     margin-left: auto;
 }
 
 #assistant-chat-bubble:hover {
     background: var(--ink-soft);
     transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(10, 10, 10, .06), 0 12px 28px -10px rgba(10, 10, 10, .3);
 }
 
 #assistant-chat-bubble:active { transform: translateY(0) scale(.96); }
@@ -42,14 +46,14 @@
 /* ─── Chat panel ──────────────────────────────────────────────── */
 #assistant-chat-panel {
     display: none;
-    width: 380px;
+    width: 396px;
     max-width: calc(100vw - 40px);
-    height: 500px;
+    height: 560px;
     max-height: calc(100vh - 120px);
     background: var(--paper);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm), 0 12px 32px rgba(10, 10, 10, .16);
+    box-shadow: var(--shadow-sm), 0 24px 48px -12px rgba(10, 10, 10, .22);
     flex-direction: column;
     overflow: hidden;
     margin-bottom: 8px;
@@ -57,18 +61,70 @@
 
 #assistant-chat-panel.open { display: flex; }
 
+@media (prefers-reduced-motion: no-preference) {
+    #assistant-chat-panel.open {
+        animation: chat-panel-in var(--dur) var(--ease);
+        transform-origin: bottom right;
+    }
+    @keyframes chat-panel-in {
+        from { opacity: 0; transform: translateY(8px) scale(.98); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+}
+
 /* ─── Header ──────────────────────────────────────────────────── */
 #assistant-chat-header {
     background: var(--ink);
     color: #fff;
-    padding: 14px 16px;
+    padding: 13px 16px;
     font-weight: 700;
-    font-size: 15px;
+    font-size: 14.5px;
     letter-spacing: .01em;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
+}
+
+.assistant-chat-header-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+/* Live status dot — monochrome pulse, semantic "assistant available" cue */
+.assistant-chat-status-dot {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--paper);
+    position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .assistant-chat-status-dot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: var(--paper);
+        animation: chat-ping 2.4s var(--ease) infinite;
+    }
+    @keyframes chat-ping {
+        0%, 100% { transform: scale(1); opacity: .55; }
+        50%      { transform: scale(2.2); opacity: 0; }
+    }
+}
+
+.assistant-chat-header-sub {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .02em;
+    color: rgba(255, 255, 255, .62);
+    margin-top: 1px;
 }
 
 #assistant-chat-close {
@@ -99,59 +155,196 @@
     background: var(--surface);
 }
 
-.assistant-chat-msg { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
-.assistant-chat-msg.user { align-self: flex-end; align-items: flex-end; }
-.assistant-chat-msg.assistant { align-self: flex-start; align-items: flex-start; }
+.assistant-chat-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-width: 88%;
+}
 
-.assistant-chat-msg .msg-role {
+@media (prefers-reduced-motion: no-preference) {
+    .assistant-chat-msg { animation: chat-msg-in .18s var(--ease); }
+    @keyframes chat-msg-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+}
+
+.assistant-chat-msg.user { align-self: flex-end; align-items: flex-end; }
+.assistant-chat-msg.assistant { align-self: stretch; align-items: stretch; }
+
+.assistant-chat-msg.user .msg-role,
+.assistant-chat-msg.assistant .msg-role {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--muted);
+    letter-spacing: .05em;
+    color: var(--muted-2);
+    padding: 0 2px;
 }
 
-.assistant-chat-msg .msg-text {
-    padding: 9px 12px;
-    border-radius: var(--radius);
+/* User messages: ink bubble — reads as "spoken by me".
+   Note: user text is plain (no markdown), so keep pre-wrap here only. */
+.assistant-chat-msg.user .msg-text {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 9px 13px;
+    border-radius: var(--radius-lg);
+    border-bottom-right-radius: 4px;
     font-size: 14px;
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
+    box-shadow: var(--shadow-sm);
 }
-.assistant-chat-msg.user .msg-text { background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
-.assistant-chat-msg.assistant .msg-text { background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 
-/* Rendered Markdown styles for assistant messages */
-.assistant-chat-msg.assistant .msg-text strong { font-weight: 700; }
-.assistant-chat-msg.assistant .msg-text ul { list-style: disc inside; margin: 0.5em 0; padding-left: 1em; }
-.assistant-chat-msg.assistant .msg-text li { margin: 0.25em 0; }
-.assistant-chat-msg.assistant .msg-text table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-family: var(--font-mono); font-size: 13px; }
-.assistant-chat-msg.assistant .msg-text th, .assistant-chat-msg.assistant .msg-text td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
-.assistant-chat-msg.assistant .msg-text th { background: var(--surface-2); font-weight: 600; }
-.assistant-chat-msg.assistant .msg-text code { font-family: var(--font-mono); font-size: 13px; background: var(--surface-2); padding: 1px 4px; border-radius: 3px; }
-.assistant-chat-msg.assistant .msg-text p { margin: 0.5em 0; }
-.assistant-chat-msg.assistant .msg-text p:first-child { margin-top: 0; }
-.assistant-chat-msg.assistant .msg-text p:last-child { margin-bottom: 0; }
+/* Assistant messages: framed paper card on the page surface.
+   Markdown-rendered HTML must NOT use pre-wrap or the model's source
+   newlines double up the CSS block margins. */
+.assistant-chat-msg.assistant .msg-text {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 11px 13px;
+    border-radius: var(--radius-lg);
+    border-top-left-radius: 4px;
+    font-size: 13.75px;
+    line-height: 1.55;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    box-shadow: var(--shadow-sm);
+}
 
-.assistant-chat-msg .msg-links { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+/* Rendered Markdown styles for assistant messages.
+   Tight vertical rhythm: small block margins that never stack into
+   the excessive gaps produced by default UA + marked.js output. */
+.assistant-chat-msg.assistant .msg-text > *:first-child { margin-top: 0 !important; }
+.assistant-chat-msg.assistant .msg-text > *:last-child { margin-bottom: 0 !important; }
+
+.assistant-chat-msg.assistant .msg-text p { margin: .45em 0; }
+.assistant-chat-msg.assistant .msg-text strong { font-weight: 650; }
+
+.assistant-chat-msg.assistant .msg-text h1,
+.assistant-chat-msg.assistant .msg-text h2,
+.assistant-chat-msg.assistant .msg-text h3,
+.assistant-chat-msg.assistant .msg-text h4 {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -.005em;
+    margin: .7em 0 .35em;
+}
+
+.assistant-chat-msg.assistant .msg-text ul,
+.assistant-chat-msg.assistant .msg-text ol {
+    list-style-position: outside;
+    margin: .4em 0;
+    padding-left: 1.25em;
+}
+.assistant-chat-msg.assistant .msg-text ul { list-style-type: disc; }
+.assistant-chat-msg.assistant .msg-text ol { list-style-type: decimal; }
+.assistant-chat-msg.assistant .msg-text li { margin: .15em 0; }
+.assistant-chat-msg.assistant .msg-text li > p { margin: 0; }
+
+.assistant-chat-msg.assistant .msg-text table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: .55em 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    display: block;
+    overflow-x: auto;
+}
+.assistant-chat-msg.assistant .msg-text th,
+.assistant-chat-msg.assistant .msg-text td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+.assistant-chat-msg.assistant .msg-text th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+
+.assistant-chat-msg.assistant .msg-text code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--surface-2);
+    padding: 1px 4px;
+    border-radius: 4px;
+}
+.assistant-chat-msg.assistant .msg-text hr {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: .65em 0;
+}
+
+.assistant-chat-msg .msg-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 1px;
+}
 .assistant-chat-msg .msg-links a {
     font-size: 12.5px;
     font-weight: 600;
     color: var(--ink);
     text-decoration: none;
-    border-bottom: 1px solid var(--line-strong);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
-.assistant-chat-msg .msg-links a:hover { border-bottom-color: var(--ink); }
+.assistant-chat-msg .msg-links a:hover {
+    border-color: var(--ink);
+    background: var(--surface-2);
+}
 
+/* ─── Thinking indicator ──────────────────────────────────────── */
 .assistant-chat-loading {
     align-self: flex-start;
-    font-size: 13px;
-    color: var(--muted);
-    font-style: italic;
-    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    border-top-left-radius: 4px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow-sm);
 }
 
+.assistant-chat-loading-dots { display: flex; gap: 4px; align-items: center; }
+.assistant-chat-loading-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .assistant-chat-loading-dots span {
+        animation: chat-dot 1.2s var(--ease) infinite;
+    }
+    .assistant-chat-loading-dots span:nth-child(2) { animation-delay: .15s; }
+    .assistant-chat-loading-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes chat-dot {
+        0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+        30%           { transform: translateY(-4px); opacity: 1; }
+    }
+}
+
+.assistant-chat-loading-label {
+    font-size: 12.5px;
+    color: var(--muted);
+    user-select: none;
+}
+
+/* Reveal state while a response is being typed out */
+.msg-text.is-revealing::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--ink-soft);
+}
+
+/* ─── Input area ──────────────────────────────────────────────── */
 .assistant-chat-error {
     align-self: center;
     font-size: 12.5px;
@@ -167,7 +360,7 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 10px;
+    padding: 10px 12px;
     border-top: 1px solid var(--line);
     background: var(--paper);
     flex-shrink: 0;
@@ -177,38 +370,43 @@
     flex: 1;
     resize: none;
     border: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    padding: 9px 11px;
+    border-radius: 999px;
+    padding: 10px 15px;
     font-family: var(--font-sans);
     font-size: 14px;
+    line-height: 1.4;
     color: var(--ink);
-    max-height: 100px;
-    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+    background: var(--surface);
+    max-height: 110px;
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 #assistant-chat-input:focus {
     outline: none;
+    background: var(--paper);
     border-color: var(--ink);
-    box-shadow: 0 0 0 3px rgba(10, 10, 10, .08);
+    box-shadow: 0 0 0 3px rgba(10, 10, 10, .07);
 }
+#assistant-chat-input::placeholder { color: var(--muted-2); }
 #assistant-chat-input:disabled { background: var(--surface-2); color: var(--muted-2); }
 
 #assistant-chat-send {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     flex-shrink: 0;
     border: none;
-    border-radius: var(--radius);
+    border-radius: 50%;
     background: var(--ink);
     color: #fff;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+    transition: background-color var(--dur) var(--ease), opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 #assistant-chat-send svg { width: 16px; height: 16px; }
-#assistant-chat-send:hover:not(:disabled) { background: var(--ink-soft); }
-#assistant-chat-send:disabled { opacity: .45; cursor: not-allowed; }
+#assistant-chat-send:hover:not(:disabled) { background: var(--ink-soft); transform: translateY(-1px); }
+#assistant-chat-send:active:not(:disabled) { transform: scale(.94); }
+#assistant-chat-send:disabled { opacity: .4; cursor: not-allowed; }
 #assistant-chat-send:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
 
 @media (max-width: 480px) {
