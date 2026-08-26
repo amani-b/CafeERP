@@ -240,7 +240,13 @@
 <div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget">
     <div id="assistant-chat-panel">
         <div id="assistant-chat-header">
-            <span>AI Assistant</span>
+            <div class="assistant-chat-header-title">
+                <span class="assistant-chat-status-dot" aria-hidden="true"></span>
+                <div>
+                    AI Assistant
+                    <span class="assistant-chat-header-sub">Answers from live cafe data</span>
+                </div>
+            </div>
             <button id="assistant-chat-close" aria-label="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>

@@ -12,13 +12,22 @@
         return; // widget not rendered on this page
     }
 
+    var prefersReducedMotion = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     function escapeHtml(text) {
         var div = document.createElement('div');
         div.appendChild(document.createTextNode(text));
         return div.innerHTML;
     }
 
-    function addMessage(role, text, links) {
+    // Collapse runs of 2+ blank lines that some models emit despite prompt
+    // instructions — belt-and-braces alongside the tightened CSS rhythm.
+    function normalizeMarkdownWhitespace(text) {
+        return String(text).replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    function buildMessageShell(role) {
         var div = document.createElement('div');
         div.className = 'assistant-chat-msg ' + role;
 
@@ -29,28 +38,75 @@
 
         var textDiv = document.createElement('div');
         textDiv.className = 'msg-text';
-        if (role === 'assistant') {
-            textDiv.innerHTML = DOMPurify.sanitize(marked.parse(text));
-        } else {
-            textDiv.textContent = text;
-        }
         div.appendChild(textDiv);
 
-        if (links && links.length > 0) {
-            var linksDiv = document.createElement('div');
-            linksDiv.className = 'msg-links';
-            links.forEach(function (link) {
-                var a = document.createElement('a');
-                a.href = link.url;
-                a.textContent = link.label + ' \u2192';
-                a.target = '_blank';
-                a.rel = 'noopener';
-                linksDiv.appendChild(a);
-            });
-            div.appendChild(linksDiv);
-        }
-
         messagesContainer.appendChild(div);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return { root: div, textEl: textDiv };
+    }
+
+    function renderAssistantMarkdown(el, text) {
+        el.innerHTML = DOMPurify.sanitize(marked.parse(normalizeMarkdownWhitespace(text)));
+    }
+
+    // Cosmetic streaming reveal: types plain text quickly (total duration
+    // capped), then swaps in the fully-rendered markdown. Skipped entirely
+    // under prefers-reduced-motion.
+    function addAssistantMessageWithReveal(text, links) {
+        if (prefersReducedMotion || text.length < 24) {
+            addMessage('assistant', text, links);
+            return;
+        }
+        var shell = buildMessageShell('assistant');
+        var el = shell.textEl;
+        el.classList.add('is-revealing');
+
+        var totalMs = Math.min(900, 300 + text.length); // fast regardless of length
+        var startTime = null;
+        var pendingLinks = links || [];
+
+        function step(ts) {
+            if (!startTime) startTime = ts;
+            var progress = Math.min(1, (ts - startTime) / totalMs);
+            var chars = Math.floor(text.length * progress);
+            el.textContent = text.slice(0, chars);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                el.classList.remove('is-revealing');
+                renderAssistantMarkdown(el, text);
+                if (pendingLinks.length > 0) appendLinks(shell.root, pendingLinks);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+        requestAnimationFrame(step);
+    }
+
+    function appendLinks(root, links) {
+        var linksDiv = document.createElement('div');
+        linksDiv.className = 'msg-links';
+        links.forEach(function (link) {
+            var a = document.createElement('a');
+            a.href = link.url;
+            a.textContent = link.label + ' \u2192';
+            a.target = '_blank';
+            a.rel = 'noopener';
+            linksDiv.appendChild(a);
+        });
+        root.appendChild(linksDiv);
+    }
+
+    function addMessage(role, text, links) {
+        var shell = buildMessageShell(role);
+        if (role === 'assistant') {
+            renderAssistantMarkdown(shell.textEl, text);
+        } else {
+            shell.textEl.textContent = text;
+        }
+        if (links && links.length > 0) {
+            appendLinks(shell.root, links);
+        }
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
@@ -63,7 +119,20 @@
         if (loading) {
             var el = document.createElement('div');
             el.className = 'assistant-chat-loading';
-            el.textContent = 'Thinking...';
+
+            var dots = document.createElement('div');
+            dots.className = 'assistant-chat-loading-dots';
+            dots.setAttribute('aria-hidden', 'true');
+            for (var i = 0; i < 3; i++) {
+                dots.appendChild(document.createElement('span'));
+            }
+            el.appendChild(dots);
+
+            var label = document.createElement('span');
+            label.className = 'assistant-chat-loading-label';
+            label.textContent = 'Thinking\u2026';
+            el.appendChild(label);
+
             messagesContainer.appendChild(el);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             sendBtn.disabled = true;
@@ -123,7 +192,7 @@
             })
             .then(function (reply) {
                 setLoading(false);
-                addMessage('assistant', reply.text, reply.links || []);
+                addAssistantMessageWithReveal(reply.text, reply.links || []);
             })
             .catch(function () {
                 setLoading(false);
@@ -147,6 +216,12 @@
     });
 
     sendBtn.addEventListener('click', sendMessage);
+
+    // Auto-grow the input up to its max-height
+    inputEl.addEventListener('input', function () {
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+    });
 
     inputEl.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
