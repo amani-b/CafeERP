@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -250,10 +251,10 @@ class OrderServiceTest {
     }
 
     // -------------------------------------------------------
-    //  Inventory: tracked item with insufficient stock → excluded
+    //  Inventory: tracked item with insufficient stock → REJECT order
     // -------------------------------------------------------
     @Test
-    void createOrder_withTrackedItemInsufficientStock_shouldExcludeThatLine() {
+    void createOrder_withTrackedItemInsufficientStock_shouldRejectTheOrder() {
         MenuItem coffee = availableItem(1L, "Coffee", new BigDecimal("3.50"));
         Inventory inv = trackedInventory(1L, 2);
 
@@ -264,42 +265,40 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(Map.of(1L, 5)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Select at least one available menu item.");
+                .hasMessageContaining("Insufficient stock")
+                .hasMessageContaining("Coffee");
 
         verify(inventoryRepository).decrementStockIfSufficient(eq(1L), eq(5), any(LocalDateTime.class));
         verify(orderRepository, never()).save(any());
     }
 
     // -------------------------------------------------------
-    //  Inventory: mixed — tracked insufficient + tracked sufficient
+    //  Inventory: mixed — tracked insufficient stock REJECTS the
+    //  whole order (a paid-for line item must never be dropped)
     // -------------------------------------------------------
     @Test
-    void createOrder_withOneTrackedInsufficientAndOneSufficient_shouldExcludeOnlyInsufficient() {
+    void createOrder_withOneTrackedInsufficientAndOneSufficient_shouldRejectWholeOrder() {
         MenuItem coffee = availableItem(1L, "Coffee", new BigDecimal("3.50"));
         MenuItem tea = availableItem(2L, "Tea", new BigDecimal("2.00"));
-        Inventory coffeeInv = trackedInventory(1L, 1);  // only 1 in stock
-        Inventory teaInv = trackedInventory(2L, 10);
+        Inventory coffeeInv = trackedInventory(1L, 1);   // only 1 in stock
+        Inventory teaInv = untrackedInventory(2L);       // fine either way
 
         when(menuItemRepository.findById(1L)).thenReturn(Optional.of(coffee));
-        when(menuItemRepository.findById(2L)).thenReturn(Optional.of(tea));
+        // Tea lookups only happen when tea happens to be processed first.
+        lenient().when(menuItemRepository.findById(2L)).thenReturn(Optional.of(tea));
         when(inventoryRepository.findByMenuItemId(1L)).thenReturn(Optional.of(coffeeInv));
-        when(inventoryRepository.findByMenuItemId(2L)).thenReturn(Optional.of(teaInv));
+        // Tea is untracked so result never depends on Map iteration order;
+        // these stubs are only hit when tea happens to be processed first.
+        lenient().when(inventoryRepository.findByMenuItemId(2L)).thenReturn(Optional.of(teaInv));
         // Coffee qty 3 exceeds stock 1 → fails atomic decrement
         when(inventoryRepository.decrementStockIfSufficient(eq(1L), eq(3), any(LocalDateTime.class)))
                 .thenReturn(0);
-        // Tea qty 2 is fine → succeeds
-        when(inventoryRepository.decrementStockIfSufficient(eq(2L), eq(2), any(LocalDateTime.class)))
-                .thenReturn(1);
-        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Order result = orderService.createOrder(Map.of(1L, 3, 2L, 2));
+        assertThatThrownBy(() -> orderService.createOrder(Map.of(1L, 3, 2L, 2)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Coffee");
 
-        // Only tea should be in the order
-        assertThat(result.getItemCount()).isEqualTo(2);
-        assertThat(result.getTotalAmount()).isEqualByComparingTo(new BigDecimal("4.00"));
-        assertThat(result.getItems()).hasSize(1);
-        assertThat(result.getItems().get(0).getItemName()).isEqualTo("Tea");
-        verify(orderRepository).save(any());
+        verify(orderRepository, never()).save(any());
     }
 
     // -------------------------------------------------------
@@ -343,10 +342,10 @@ class OrderServiceTest {
     }
 
     // -------------------------------------------------------
-    //  Inventory: concurrent decrement failure excludes that line
+    //  Inventory: concurrent decrement failure rejects the order
     // -------------------------------------------------------
     @Test
-    void createOrder_whenConcurrentDecrementFails_shouldExcludeThatLine() {
+    void createOrder_whenConcurrentDecrementFails_shouldRejectTheOrder() {
         MenuItem coffee = availableItem(1L, "Coffee", new BigDecimal("3.50"));
         Inventory inv = trackedInventory(1L, 5); // initial stock looked fine
 
@@ -358,7 +357,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(Map.of(1L, 3)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Select at least one available menu item.");
+                .hasMessageContaining("Insufficient stock");
 
         verify(inventoryRepository).decrementStockIfSufficient(eq(1L), eq(3), any(LocalDateTime.class));
         verify(orderRepository, never()).save(any());
@@ -401,7 +400,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> orderService.createOrder(Map.of(1L, 5)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Select at least one available menu item.");
+                .hasMessageContaining("Insufficient stock");
 
         verify(inventoryRepository).decrementStockIfSufficient(eq(1L), eq(5), any(LocalDateTime.class));
         verify(orderRepository, never()).save(any());

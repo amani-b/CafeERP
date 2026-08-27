@@ -35,4 +35,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-```CafeERP.zip
+# CafeERP.zip is a bulky leftover handoff artifact — never commit it.
+CafeERP.zip

@@ -111,13 +111,18 @@ public class AssistantController {
 
     /**
      * GET /assistant/admin/{userId} — admin only. Full thread for a specific user.
+     * <p>
+     * Returns a proper REST 404 (empty body) for unknown users instead of letting
+     * {@code IllegalArgumentException} fall through to the MVC error-page handler,
+     * which would render an HTML page on this JSON endpoint.
      */
     @GetMapping("/admin/{userId}")
     public ResponseEntity<List<AssistantMessage>> adminUserHistory(@PathVariable Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
-        List<AssistantMessage> messages = assistantService.getHistory(user);
-        return ResponseEntity.ok(messages);
+        return userRepository.findById(userId)
+                .map(user -> ResponseEntity.ok(assistantService.getHistory(user)))
+                .orElseGet(() -> {
+                    log.warn("Assistant thread requested for unknown user id {}", userId);
+                    return ResponseEntity.notFound().build();
+                });
     }
 }
