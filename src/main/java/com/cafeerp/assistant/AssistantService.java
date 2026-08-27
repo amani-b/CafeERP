@@ -1,9 +1,5 @@
 package com.cafeerp.assistant;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,29 +22,30 @@ public class AssistantService {
 
     private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
 
-    private static final int MAX_TOOL_ROUNDS = 5;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_TOOL_ROUNDS = 8;
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
     private final AssistantMessageRepository messageRepository;
     private final AssistantToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private final ChatCompletionClient chatCompletionClient;
     private final List<ModelProvider> providers;
     private final DeterministicFallbackHandler fallbackHandler;
+    private final AssistantAccessGuard accessGuard;
 
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantToolRegistry toolRegistry,
                             ObjectMapper objectMapper,
+                            ChatCompletionClient chatCompletionClient,
                             AssistantConfigProperties configProperties,
-                            DeterministicFallbackHandler fallbackHandler) {
+                            DeterministicFallbackHandler fallbackHandler,
+                            AssistantAccessGuard accessGuard) {
         this.messageRepository = messageRepository;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
+        this.chatCompletionClient = chatCompletionClient;
         this.fallbackHandler = fallbackHandler;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(TIMEOUT)
-                .build();
+        this.accessGuard = accessGuard;
 
         // Build ordered provider list from configuration
         this.providers = configProperties.getProviders().stream()
@@ -67,6 +64,10 @@ public class AssistantService {
      * Order of operations:
      * <ol>
      *   <li>Persist the user's message</li>
+     *   <li><b>Hard access gate:</b> {@link AssistantAccessGuard} classifies
+     *       restricted topics (sales/finance, payroll, colleague performance)
+     *       for non-admin roles. A denied message is answered locally and never
+     *       sent to an AI provider or tool handler.</li>
      *   <li><b>Intelligent routing:</b> Check if this query matches a narrow set of
      *       canonical patterns where deterministic pattern-matching produces a
      *       clearer, safer answer than a generated one (e.g. exact order ID lookups).
@@ -78,11 +79,28 @@ public class AssistantService {
      *   <li>If Tier 2 also finds no pattern match, return a graceful "unavailable" message
      *       that lists what the user CAN ask about directly.</li>
      * </ol>
+     * <p>
+     * NOTE: deliberately NOT {@code @Transactional}. AI provider calls can take
+     * tens of seconds each (with retries); wrapping them in one transaction would
+     * pin a pooled database connection for that whole duration. Each repository
+     * save commits independently — fine for chat history. It also avoids the
+     * rollback-only trap where an inner service throws, gets caught here, but has
+     * already marked the shared transaction rollback-only (previously surfacing as
+     * {@code UnexpectedRollbackException} at commit for queries like
+     * "status of order 999999").
      */
-    @Transactional
     public AssistantReply processMessage(User user, String userMessage) {
         // 1. Persist the user's message
         messageRepository.save(new AssistantMessage(user, AssistantMessageRole.USER, userMessage));
+
+        // 1b. Hard access gate — structural restriction for sensitive topics.
+        AssistantAccessGuard.Decision decision = accessGuard.check(user.getRole(), userMessage);
+        if (!decision.allowed()) {
+            log.info("Assistant access guard blocked restricted topic for user '{}'", user.getUsername());
+            AssistantReply denial = new AssistantReply(decision.denialText(), List.of());
+            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, denial.text()));
+            return denial;
+        }
 
         // 2. Intelligent routing: check for canonical patterns that should bypass AI entirely.
         //    This is NOT random or threshold-based — it's a rule-based decision:
@@ -175,8 +193,8 @@ public class AssistantService {
         if (!allowedTools.contains("getOrderStatus")) {
             return false;
         }
-        // Match patterns like "order #123", "order 456", "#789", "status of 123"
-        return DeterministicFallbackHandler.ORDER_ID_PATTERN.matcher(userMessage).find();
+        // Match order-looking queries only: "order #123", "order 456", "#789"
+        return DeterministicFallbackHandler.extractOrderId(userMessage).isPresent();
     }
 
     /**
@@ -328,39 +346,58 @@ public class AssistantService {
     // ---------------------------------------------------------------
 
     private String systemPromptForRole(Role role) {
+        String formattingRules =
+                "Formatting rules — follow them exactly: respond in clean, professional Markdown that renders "
+                + "tightly and scans quickly. Use compact short paragraphs separated by AT MOST one blank line — "
+                + "never two or more consecutive blank lines anywhere. Use **bold** for key numbers and labels, "
+                + "real Markdown bullet lists only where a list genuinely helps (items on consecutive lines, no "
+                + "blank lines between items), and Markdown tables (| col | col |) for structured data like menu "
+                + "items, inventory levels, or sales breakdowns — not walls of plain text. "
+                + "Emoji policy: almost never. Most responses must contain zero emoji. Include one emoji only when "
+                + "it is semantically tied to the content itself (e.g. ✅ confirming a specific completed action, "
+                + "⚠️ flagging a genuine warning such as low stock, 🥐 when naming a specific menu item or "
+                + "category). Never use emoji decoratively, never more than one per response, never in headings.";
+
         return switch (role) {
             case STAFF, KITCHEN ->
-                "You are a helpful cafe assistant. You can answer questions about order status and menu items "
-                + "using the tools available to you. Only answer using data returned by tool calls you actually made. "
-                + "If a question needs information outside your available tools, say plainly that you don't have "
-                + "access to that information and suggest asking a manager or admin. Never estimate, guess, or "
-                + "answer from general knowledge. Never discuss what tools or capabilities other roles have. "
-                + "Formatting rules — follow them exactly: respond in clean, professional Markdown that renders "
-                + "tightly and scans quickly. Use compact short paragraphs separated by AT MOST one blank line — "
-                + "never two or more consecutive blank lines anywhere. Use **bold** for key numbers and labels, "
-                + "real Markdown bullet lists only where a list genuinely helps (items on consecutive lines, no "
-                + "blank lines between items), and Markdown tables (| col | col |) for structured data like menu "
-                + "items, inventory levels, or sales breakdowns — not walls of plain text. "
-                + "Emoji policy: almost never. Most responses must contain zero emoji. Include one emoji only when "
-                + "it is semantically tied to the content itself (e.g. ✅ confirming a specific completed action, "
-                + "⚠️ flagging a genuine warning such as low stock, 🥐 when naming a specific menu item or "
-                + "category). Never use emoji decoratively, never more than one per response, never in headings.";
+                // Shift-floor buddy: practical, warm, grounded in real queue/menu/order data.
+                "You are the shift-floor buddy at this cafe — think of a friendly senior coworker who knows "
+                + "the place inside out and loves helping people get through their shift smoothly. You can "
+                + "pull live order status, menu items, prices and availability, and the kitchen queue "
+                + "(PENDING/PREPARING/READY counts) using your tools — do so whenever a question touches on "
+                + "what's happening right now instead of answering from memory. Only state facts you got from "
+                + "tool calls; if you don't have data for something, say so plainly.\n"
+                + "When someone asks how to get through their shift faster or handle a rush, give practical, "
+                + "down-to-earth advice a coworker would actually use: batch similar drinks, fire tickets in "
+                + "order, grab the ready orders before starting new ones, keep communication with the kitchen "
+                + "clear and stay upfront about delays. Ground it in the real queue numbers you pulled, then "
+                + "suggest one or two concrete next moves rather than a lecture.\n"
+                + "Voice: human and approachable — contractions welcome, short sentences, light warmth, no "
+                + "corporate filler. Address them like a colleague at work, not a customer.\n"
+                + "Boundaries: some things are manager-only territory (sales figures, revenue, profit margins, "
+                + "payroll, or how individual coworkers are performing). Never guess, estimate or hint at those "
+                + "even playfully or hypothetically — say it's manager territory and pivot to what you can help "
+                + "with. Never discuss what tools other roles have.\n"
+                + formattingRules;
             case ADMIN ->
-                "You are a helpful cafe assistant with access to sales reports, inventory, and kitchen queue data. "
-                + "Only answer using data returned by tool calls you actually made. If a question needs information "
-                + "outside your available tools, say plainly that you don't have access to that information. "
-                + "Never estimate, guess, or answer from general knowledge. Never discuss what tools or capabilities "
-                + "other roles have. "
-                + "Formatting rules — follow them exactly: respond in clean, professional Markdown that renders "
-                + "tightly and scans quickly. Use compact short paragraphs separated by AT MOST one blank line — "
-                + "never two or more consecutive blank lines anywhere. Use **bold** for key numbers and labels, "
-                + "real Markdown bullet lists only where a list genuinely helps (items on consecutive lines, no "
-                + "blank lines between items), and Markdown tables (| col | col |) for structured data like menu "
-                + "items, inventory levels, or sales breakdowns — not walls of plain text. "
-                + "Emoji policy: almost never. Most responses must contain zero emoji. Include one emoji only when "
-                + "it is semantically tied to the content itself (e.g. ✅ confirming a specific completed action, "
-                + "⚠️ flagging a genuine warning such as low stock, 🥐 when naming a specific menu item or "
-                + "category). Never use emoji decoratively, never more than one per response, never in headings.";
+                // In-house business analyst: pulls real data, interprets it, recommends.
+                "You are this cafe's resident business analyst — a sharp, warm coworker who happens to love "
+                + "numbers and turning them into decisions. Managers come to you with questions like \"how do "
+                + "we increase sales?\", \"what's not working?\" or \"are we stocked for the weekend?\"\n"
+                + "Your method, every analytical question: (1) pull the relevant data with your tools first — "
+                + "sales totals and order counts for a sensible period, top sellers, inventory levels, and the "
+                + "kitchen queue when throughput matters; (2) interpret what you see — call out trends, gaps, "
+                + "outliers and what they likely mean for THIS cafe; (3) recommend — finish with 2-3 concrete, "
+                + "prioritized actions an owner could take this week, each tied to the numbers you just cited. "
+                + "Do not stop at reciting figures; the value is the judgment around them.\n"
+                + "Ground rules: only state facts returned by tool calls you actually made. If data is missing "
+                + "or the period is too small to be meaningful, say so plainly and note the caveat before "
+                + "reasoning anyway. Never estimate, invent numbers, or import outside market stats. If intent "
+                + "is ambiguous, give your best analysis from available data and ask ONE short follow-up "
+                + "question. Never discuss what tools other roles have.\n"
+                + "Voice: human, encouraging, plainspoken — contractions welcome, no corporate jargon. Speak to "
+                + "the owner like a trusted colleague: honest about problems, constructive about fixes.\n"
+                + formattingRules;
         };
     }
 
@@ -432,18 +469,10 @@ public class AssistantService {
 
                 String jsonBody = objectMapper.writeValueAsString(body);
 
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(provider.url()))
-                        .header("Authorization", "Bearer " + apiKey)
-                        .header("Content-Type", "application/json")
-                        .timeout(TIMEOUT)
-                        .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                        .build();
+                ChatCompletionClient.Result result =
+                        chatCompletionClient.post(provider.url(), apiKey, jsonBody);
 
-                HttpResponse<String> httpResponse = httpClient.send(request,
-                        HttpResponse.BodyHandlers.ofString());
-
-                int status = httpResponse.statusCode();
+                int status = result.status();
 
                 if (status == 429) {
                     log.warn("{} rate-limited (429) on attempt {}; retrying after {}ms",
@@ -457,7 +486,7 @@ public class AssistantService {
 
                 if (status >= 500) {
                     log.warn("{} server error ({}): attempt {}; body={}",
-                            provider.name(), status, attempt + 1, httpResponse.body());
+                            provider.name(), status, attempt + 1, result.body());
                     if (attempt == 0) {
                         Thread.sleep(RETRY_DELAY.toMillis());
                         continue;
@@ -467,11 +496,11 @@ public class AssistantService {
 
                 if (status >= 400) {
                     log.warn("{} API error: status={}, body={}",
-                            provider.name(), status, httpResponse.body());
+                            provider.name(), status, result.body());
                     return null;
                 }
 
-                return objectMapper.readValue(httpResponse.body(),
+                return objectMapper.readValue(result.body(),
                         new TypeReference<Map<String, Object>>() {});
 
             } catch (InterruptedException e) {

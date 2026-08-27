@@ -11,6 +11,8 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "cafe_user")
 public class User {
@@ -23,6 +25,12 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
+    // SECURITY: The BCrypt hash must never be serialized to clients. This entity
+    // is returned directly by the /assistant/admin REST endpoints, where Jackson
+    // would otherwise include the hash in the JSON response. The Thymeleaf form
+    // binding used by the users CRUD pages does not go through Jackson, so this
+    // annotation has no effect there.
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 

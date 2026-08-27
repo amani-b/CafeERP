@@ -66,6 +66,15 @@ public class OrderService {
         return saved;
     }
 
+    /**
+     * Creates an order from a quantity map.
+     * <p>
+     * Availability filtering: unavailable menu items are silently excluded
+     * (they should never have been selectable), but tracked inventory items
+     * with insufficient stock REJECT the whole order with a clear message —
+     * silently dropping a paid-for line item would short both the customer
+     * and the sales report.
+     */
     @Transactional
     public Order createOrder(Map<Long, Integer> quantities) {
         Order order = new Order();
@@ -88,8 +97,10 @@ public class OrderService {
             MenuItem menuItem = opt.get();
 
             if (isStockInsufficient(menuItemId, quantity, now)) {
-                log.warn("Insufficient stock for menu item: id={}, name={}", menuItemId, menuItem.getName());
-                return;
+                log.warn("Order rejected: insufficient stock for menu item id={}, name={}, requested={}",
+                        menuItemId, menuItem.getName(), quantity);
+                throw new IllegalArgumentException(
+                        "Insufficient stock for \"" + menuItem.getName() + "\".");
             }
 
             order.addItem(menuItem, quantity);
