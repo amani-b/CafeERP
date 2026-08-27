@@ -21,27 +21,36 @@
         </div>
     </section>
 
+    <div class="alert alert-success mb-4" th:if="${successMessage}" th:text="${successMessage}">Done.</div>
+    <div class="alert alert-danger mb-4" th:if="${errorMessage}" th:text="${errorMessage}">Error.</div>
+
     <section class="card card-pad">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold" th:text="${showInactive} ? 'Inactive (deactivated) users' : 'Active users'">Active users</h2>
+            <a class="text-sm font-semibold" th:href="${showInactive} ? @{/users} : @{/users(showInactive=1)}"
+               th:text="${showInactive} ? '← Back to active users' : 'Show inactive users'">Show inactive users</a>
+        </div>
         <div th:if="${#lists.isEmpty(users)}" class="empty-state">
             <div class="icon-tile">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
-            <h3>No users yet</h3>
-            <p>Create the first staff account to get started.</p>
-            <a th:href="@{/users/new}" class="btn btn-primary px-5 text-sm mt-4"><span class="btn-label">Add a user</span></a>
+            <h3 th:text="${showInactive} ? 'No deactivated users' : 'No users yet'">No users yet</h3>
+            <p th:text="${showInactive} ? 'Deactivated accounts will appear here and can be reactivated.' : 'Create the first staff account to get started.'">Create the first staff account to get started.</p>
+            <a th:href="@{/users/new}" class="btn btn-primary px-5 text-sm mt-4" th:unless="${showInactive}"><span class="btn-label">Add a user</span></a>
         </div>
         <div class="table-wrap" th:unless="${#lists.isEmpty(users)}">
-            <table class="uk-table uk-table-middle">
+            <table class="uk-table uk-table-middle" data-testid="users-table">
                 <thead>
                 <tr>
                     <th>Username</th>
                     <th>Role</th>
+                    <th>Status</th>
                     <th>Password Status</th>
                     <th class="uk-text-right">Actions</th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="user : ${users}">
+                <tr th:each="user : ${users}" th:attr="data-username=${user.username}">
                     <td class="font-semibold" th:text="${user.username}">admin</td>
                     <td>
                         <span class="badge badge-ink" th:if="${user.role.name() == 'ADMIN'}">Admin</span>
@@ -49,11 +58,32 @@
                         <span class="badge badge-info" th:if="${user.role.name() == 'KITCHEN'}">Kitchen</span>
                     </td>
                     <td>
+                        <span class="badge badge-success" th:unless="${user.deleted}">Active</span>
+                        <span class="badge badge-warn" th:if="${user.deleted}">Inactive</span>
+                    </td>
+                    <td>
                         <span class="badge badge-warn" th:if="${user.mustChangePassword}">Must change</span>
                         <span class="badge badge-success" th:unless="${user.mustChangePassword}">Set</span>
                     </td>
                     <td class="uk-text-right">
-                        <a class="btn btn-secondary px-4 text-sm" th:href="@{/users/edit/{id}(id=${user.id})}"><span class="btn-label">Edit</span></a>
+                        <div class="flex gap-2 justify-end items-center">
+                            <a class="btn btn-secondary px-4 text-sm" th:href="@{/users/edit/{id}(id=${user.id})}"><span class="btn-label">Edit</span></a>
+                            <form th:if="${!user.deleted}" th:action="@{/users/deactivate/{id}(id=${user.id})}" method="post"
+                                  class="user-deactivate-form" th:attr="data-username=${user.username}">
+                                <button type="submit" class="btn btn-secondary px-4 text-sm" data-testid="deactivate-btn">
+                                    <span class="btn-label">Deactivate</span>
+                                </button>
+                            </form>
+                            <form th:if="${user.deleted}" th:action="@{/users/activate/{id}(id=${user.id})}" method="post">
+                                <button type="submit" class="btn btn-secondary px-4 text-sm">
+                                    <span class="btn-label">Reactivate</span>
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-danger px-4 text-sm user-delete-btn"
+                                    th:attr="data-user-id=${user.id},data-username=${user.username}" data-testid="delete-btn">
+                                <span class="btn-label">Delete</span>
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 </tbody>
@@ -63,5 +93,87 @@
 </main>
 
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
+<!-- Hard delete confirmation: type-to-confirm, irreversible. The server
+     re-validates the typed username, so this modal is UX, not the boundary. -->
+<div id="hard-delete-modal" class="hard-delete-modal" hidden>
+    <div class="hard-delete-modal-backdrop" data-close-modal></div>
+    <div class="hard-delete-modal-card" role="dialog" aria-modal="true" aria-labelledby="hard-delete-title">
+        <h3 id="hard-delete-title" class="text-lg font-extrabold mb-2">Permanently delete user?</h3>
+        <p class="text-sm mb-4" style="color:var(--muted);">
+            This irreversibly deletes the account
+            <strong id="hard-delete-username" class="font-bold">?</strong> and their assistant chat
+            history. Orders and other business records are not affected. <strong>This cannot be undone.</strong>
+        </p>
+        <label for="hard-delete-confirm-input" class="field-label text-sm">
+            Type <strong id="hard-delete-username-2" class="font-bold">?</strong> to confirm
+        </label>
+        <input type="text" id="hard-delete-confirm-input" class="uk-input w-full mb-4" autocomplete="off" spellcheck="false">
+        <div class="flex gap-2 justify-end">
+            <button type="button" class="btn btn-secondary px-4 text-sm" data-close-modal><span class="btn-label">Cancel</span></button>
+            <form id="hard-delete-form" method="post" action="">
+                <button type="submit" id="hard-delete-submit" class="btn btn-danger px-4 text-sm" disabled>
+                    <span class="btn-label">Delete permanently</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        'use strict';
+
+        /* SOFT DELETE — the default action: one plain confirm dialog. */
+        document.querySelectorAll('.user-deactivate-form').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                var username = form.getAttribute('data-username');
+                if (!window.confirm('Deactivate "' + username + '"? They will no longer be able to log in, but their data is kept. You can reactivate them later.')) {
+                    e.preventDefault();
+                }
+            });
+        });
+
+        /* HARD DELETE — type-to-confirm modal, irreversible. */
+        var modal = document.getElementById('hard-delete-modal');
+        var confirmInput = document.getElementById('hard-delete-confirm-input');
+        var submitBtn = document.getElementById('hard-delete-submit');
+        var deleteForm = document.getElementById('hard-delete-form');
+        var targetUsername = null;
+
+        function openModal(username, userId) {
+            targetUsername = username;
+            deleteForm.action = '/users/delete/' + userId;
+            document.getElementById('hard-delete-username').textContent = username;
+            document.getElementById('hard-delete-username-2').textContent = username;
+            confirmInput.value = '';
+            submitBtn.disabled = true;
+            modal.hidden = false;
+            confirmInput.focus();
+        }
+
+        function closeModal() {
+            modal.hidden = true;
+            targetUsername = null;
+        }
+
+        confirmInput.addEventListener('input', function () {
+            submitBtn.disabled = confirmInput.value !== targetUsername;
+        });
+
+        modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
+            el.addEventListener('click', closeModal);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && !modal.hidden) closeModal();
+        });
+
+        document.querySelectorAll('.user-delete-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                openModal(btn.getAttribute('data-username'), btn.getAttribute('data-user-id'));
+            });
+        });
+    })();
+</script>
 </body>
 </html>

@@ -3,6 +3,7 @@ package com.cafeerp.common;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -15,6 +16,10 @@ import com.cafeerp.user.UserRepository;
 
 @Configuration
 @EnableWebSecurity
+// Method-level @PreAuthorize checks back up the URL rules below (defense in
+// depth — e.g. the destructive user-delete actions are re-checked on the
+// handler method itself, not only by the URL pattern).
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;

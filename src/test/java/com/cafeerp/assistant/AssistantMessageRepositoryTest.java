@@ -39,7 +39,7 @@ class AssistantMessageRepositoryTest {
         assistantMessageRepository.save(msg2);
         assistantMessageRepository.save(msg3);
 
-        List<AssistantMessage> messages = assistantMessageRepository.findByUserOrderByCreatedAtAsc(user);
+        List<AssistantMessage> messages = assistantMessageRepository.findByUserOrderByCreatedAtAscIdAsc(user);
 
         assertEquals(3, messages.size());
         assertEquals(AssistantMessageRole.USER, messages.get(0).getRole());

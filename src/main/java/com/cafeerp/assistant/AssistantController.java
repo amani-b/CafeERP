@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cafeerp.assistant.AssistantService.AssistantReply;
@@ -53,11 +54,23 @@ public class AssistantController {
             return ResponseEntity.badRequest().build();
         }
 
+        // Optional conversation the UI wants this turn to land in (null =
+        // reuse/create the user's current conversation — same as before).
+        String conversationIdRaw = body.get("conversationId");
+        Long conversationId = null;
+        if (conversationIdRaw != null && !conversationIdRaw.isBlank()) {
+            try {
+                conversationId = Long.parseLong(conversationIdRaw);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+
         try {
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database"));
 
-            AssistantReply reply = assistantService.processMessage(user, message);
+            AssistantReply reply = assistantService.processMessage(user, message, conversationId);
             return ResponseEntity.ok(reply);
 
         } catch (Exception e) {
@@ -124,5 +137,69 @@ public class AssistantController {
                     log.warn("Assistant thread requested for unknown user id {}", userId);
                     return ResponseEntity.notFound().build();
                 });
+    }
+
+    // ---------------------------------------------------------------
+    //  Conversations — power the chat history sidebar/overlay
+    // ---------------------------------------------------------------
+
+    /**
+     * JSON-safe view of a conversation for history lists (never serializes the
+     * lazy {@code User} proxy; open-session-in-view is disabled).
+     */
+    public record ConversationSummary(Long id, String title, String createdAt,
+                                      String lastActivityAt, boolean archived) {}
+
+    /**
+     * GET /assistant/conversations — the current user's history list, most
+     * recent activity first. {@code ?archived=true} returns the soft-archived
+     * (recoverable) conversations instead of the default list.
+     */
+    @GetMapping("/conversations")
+    public ResponseEntity<List<ConversationSummary>> conversations(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(value = "archived", required = false) String archived) {
+
+        User user = requireUser(userDetails);
+        boolean archivedOnly = "true".equals(archived) || "1".equals(archived);
+        List<ConversationSummary> list = assistantService.listConversations(user, archivedOnly)
+                .stream()
+                .map(c -> new ConversationSummary(
+                        c.getId(), c.getTitle(),
+                        String.valueOf(c.getCreatedAt()), String.valueOf(c.getLastActivityAt()),
+                        c.isArchived()))
+                .toList();
+        return ResponseEntity.ok(list);
+    }
+
+    /** POST /assistant/conversations — "New chat": starts a fresh thread. */
+    @PostMapping("/conversations")
+    public ResponseEntity<ConversationSummary> createConversation(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User user = requireUser(userDetails);
+        var c = assistantService.createConversation(user);
+        return ResponseEntity.ok(new ConversationSummary(
+                c.getId(), c.getTitle(),
+                String.valueOf(c.getCreatedAt()), String.valueOf(c.getLastActivityAt()),
+                c.isArchived()));
+    }
+
+    /**
+     * GET /assistant/conversations/{id}/messages — switch to a conversation.
+     * Only the owner's conversations are accessible (404 otherwise).
+     */
+    @GetMapping("/conversations/{id}/messages")
+    public ResponseEntity<List<AssistantMessage>> conversationMessages(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+
+        User user = requireUser(userDetails);
+        return ResponseEntity.ok(assistantService.getConversationMessages(user, id));
+    }
+
+    private User requireUser(UserDetails userDetails) {
+        return userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database"));
     }
 }
