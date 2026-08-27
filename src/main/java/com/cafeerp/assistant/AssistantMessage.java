@@ -3,6 +3,7 @@ package com.cafeerp.assistant;
 import java.time.LocalDateTime;
 
 import com.cafeerp.user.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,6 +28,12 @@ public class AssistantMessage {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
+    // SECURITY/STABILITY: history is serialized to JSON via /assistant/history
+    // and the admin thread endpoints. Serializing the lazy User proxy breaks on
+    // open-session-in-view=false (LazyInitializationException → HTTP 500), and
+    // would additionally leak user details into per-user history payloads. The
+    // UI never needs it in JSON form (Thymeleaf views receive userName separately).
+    @JsonIgnore
     private User user;
 
     @Enumerated(EnumType.STRING)

@@ -36,8 +36,31 @@ public class DeterministicFallbackHandler {
     private final InventoryService inventoryService;
     private final AssistantToolRegistry toolRegistry;
 
-    // Package-private for access by AssistantService's routing classifier
-    static final Pattern ORDER_ID_PATTERN = Pattern.compile("#?(\\d+)");
+    // Package-private for access by AssistantService's routing classifier.
+    //
+    // SECURITY/UX BUG FIXED: this used to be "#?(\d+)" which matched ANY number
+    // in ANY message ("got a table of 4 — pastry suggestions?" -> "Order not
+    // found"). Now a match requires explicit order context: the word "order"
+    // immediately before the number, or a leading '#' before the number.
+    static final Pattern ORDER_ID_PATTERN =
+            Pattern.compile("(?:order\\s*#?\\s*(\\d{1,9}))|(?:#(\\d{1,9}))",
+                    Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Extract an order id from an order-looking query, or empty if none.
+     */
+    static java.util.Optional<Long> extractOrderId(String userMessage) {
+        Matcher m = ORDER_ID_PATTERN.matcher(userMessage);
+        if (!m.find()) {
+            return java.util.Optional.empty();
+        }
+        String digits = m.group(1) != null ? m.group(1) : m.group(2);
+        try {
+            return java.util.Optional.of(Long.parseLong(digits));
+        } catch (NumberFormatException e) {
+            return java.util.Optional.empty();
+        }
+    }
 
     public DeterministicFallbackHandler(OrderService orderService,
                                         MenuService menuService,
@@ -61,10 +84,10 @@ public class DeterministicFallbackHandler {
 
         // 1. Order number query — available to all roles that have getOrderStatus
         if (allowedTools.contains("getOrderStatus")) {
-            Matcher orderMatcher = ORDER_ID_PATTERN.matcher(userMessage);
-            if (orderMatcher.find()) {
+            java.util.Optional<Long> orderIdOpt = extractOrderId(userMessage);
+            if (orderIdOpt.isPresent()) {
                 try {
-                    Long orderId = Long.parseLong(orderMatcher.group(1));
+                    Long orderId = orderIdOpt.get();
                     Order order = orderService.findById(orderId);
                     String text = String.format("Order #%d: status=%s, items=%d, total=%.2f, created=%s",
                             order.getId(), order.getStatus(), order.getItemCount(),

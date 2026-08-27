@@ -46,18 +46,17 @@ public class PasswordChangeFilter extends OncePerRequestFilter {
 
             String username = auth.getName();
 
-            userRepository.findByUsername(username).ifPresent(user -> {
-                if (user.isMustChangePassword()) {
-                    String path = request.getServletPath();
-                    if (!shouldBypass(path)) {
-                        try {
-                            response.sendRedirect("/account/password");
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
+            var userOpt = userRepository.findByUsername(username);
+            if (userOpt.isPresent() && userOpt.get().isMustChangePassword()) {
+                String path = request.getServletPath();
+                if (!shouldBypass(path)) {
+                    // Response is committed — do NOT continue the chain,
+                    // otherwise downstream handlers render into an already
+                    // committed response and can throw IllegalStateException.
+                    response.sendRedirect("/account/password");
+                    return;
                 }
-            });
+            }
         }
 
         filterChain.doFilter(request, response);

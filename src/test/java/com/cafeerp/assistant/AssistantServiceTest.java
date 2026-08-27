@@ -43,7 +43,14 @@ class AssistantServiceTest {
     private AssistantConfigProperties configProperties;
 
     @Mock
+    private ChatCompletionClient chatCompletionClient;
+
+    @Mock
     private DeterministicFallbackHandler fallbackHandler;
+
+    // Real guard instance — it is stateless and pure-lexical, so exercising the
+    // genuine classification logic here is more valuable than mocking it.
+    private final AssistantAccessGuard accessGuard = new AssistantAccessGuard();
 
     private AssistantService assistantService;
 
@@ -93,7 +100,8 @@ class AssistantServiceTest {
                         "getTopSellingItems", "getInventoryLevel", "getKitchenQueueSummary"));
 
         assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), configProperties, fallbackHandler);
+                new ObjectMapper(), chatCompletionClient, configProperties,
+                fallbackHandler, accessGuard);
     }
 
     // ---------------------------------------------------------------
@@ -130,15 +138,27 @@ class AssistantServiceTest {
 
     @Test
     void tier2First_adminOnlyQuery_byStaff_shouldBeRefused() {
+        // "best sellers" deliberately avoids the hard guard's lexical triggers
+        // ("sales", revenue, margin...) so this exercises the Tier 2 refusal.
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(new AssistantReply(
                         "I'm sorry, sales and revenue information is only available to managers and administrators.",
                         List.of()));
 
-        AssistantReply reply = assistantService.processMessage(staffUser, "What were sales today?");
+        AssistantReply reply = assistantService.processMessage(staffUser, "What are our best sellers today?");
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("only available"));
+    }
+
+    @Test
+    void guard_financialQuestion_byStaff_shouldDenyBeforeAnythingElse() {
+        AssistantReply reply = assistantService.processMessage(staffUser, "what profit are we making?");
+
+        assertNotNull(reply);
+        assertTrue(reply.text().contains("outside what I can share"));
+        // Denied locally: neither Tier 2 nor providers are ever consulted
+        verify(fallbackHandler, never()).tryAnswer(anyString(), any());
     }
 
     @Test
@@ -211,7 +231,8 @@ class AssistantServiceTest {
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), configProperties, fallbackHandler);
+                new ObjectMapper(), chatCompletionClient, configProperties,
+                fallbackHandler, accessGuard);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 
@@ -254,7 +275,8 @@ class AssistantServiceTest {
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), configProperties, fallbackHandler);
+                new ObjectMapper(), chatCompletionClient, configProperties,
+                fallbackHandler, accessGuard);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 

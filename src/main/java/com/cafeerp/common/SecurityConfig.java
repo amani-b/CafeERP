@@ -32,7 +32,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.ignoringRequestMatchers("/assistant/chat"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health").permitAll()
-                .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**", "/assistant/admin/**", "/admin/assistant/**", "/users/**").hasRole("ADMIN")
+                .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**",
+                        "/admin/assistant/**", "/admin/assistant",
+                        "/assistant/admin/**", "/assistant/admin", "/users/**").hasRole("ADMIN")
                 .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
                 .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN")
