@@ -910,3 +910,51 @@
     .page-header .eyebrow, .page-header .subtitle { color: #000 !important; }
   }
 }
+
+/* ============================================================
+   Users page — hard-delete (type-to-confirm) modal.
+   Pure token styling; no new component library.
+   ============================================================ */
+.hard-delete-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.hard-delete-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 10, 10, .45);
+}
+
+.hard-delete-modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line-strong, var(--ink));
+    border-radius: var(--radius-lg, var(--radius));
+    box-shadow: var(--shadow-sm), 0 24px 48px -12px rgba(10, 10, 10, .35);
+    padding: 20px 22px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .hard-delete-modal-card {
+        animation: hard-delete-in var(--dur) var(--ease);
+    }
+    @keyframes hard-delete-in {
+        from { opacity: 0; transform: translateY(8px) scale(.98); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+}
+
+#hard-delete-confirm-input:focus {
+    outline: none;
+    border-color: var(--danger, var(--ink));
+    box-shadow: 0 0 0 3px rgba(150, 32, 26, .15);
+}

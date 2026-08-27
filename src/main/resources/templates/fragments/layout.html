@@ -233,11 +233,13 @@
 
 <!-- ============================================================ -->
 <!-- Assistant chat widget fragment                                -->
-<!-- All th:*/sec:* bindings and element IDs are unchanged so the  -->
-<!-- existing assistant-chat.js hooks keep working as-is; only the -->
-<!-- chrome (assistant-chat.css) was restyled to the app's tokens. -->
+<!-- Claude/ChatGPT-style history: New chat, fullscreen toggle     -->
+<!-- (persistent sidebar) and a slide-in history overlay in the    -->
+<!-- compact view. Both history surfaces share one renderer in     -->
+<!-- assistant-chat.js; styling is all in assistant-chat.css.      -->
 <!-- ============================================================ -->
-<div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget">
+<div th:fragment="assistant-widget" sec:authorize="isAuthenticated()" id="assistant-chat-widget"
+     th:attr="data-csrf-token=${_csrf != null ? _csrf.token : null}">
     <div id="assistant-chat-panel">
         <div id="assistant-chat-header">
             <div class="assistant-chat-header-title">
@@ -247,16 +249,54 @@
                     <span class="assistant-chat-header-sub">Answers from live cafe data</span>
                 </div>
             </div>
-            <button id="assistant-chat-close" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
+            <div class="assistant-chat-header-actions">
+                <button id="assistant-chat-new" aria-label="New chat" title="New chat" data-testid="assistant-chat-new">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <button id="assistant-chat-history-btn" aria-label="Chat history" title="Chat history" data-testid="assistant-chat-history-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <button id="assistant-chat-fullscreen" aria-label="Toggle fullscreen" title="Fullscreen" data-testid="assistant-chat-fullscreen">
+                    <svg class="icon-expand" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    <svg class="icon-collapse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button id="assistant-chat-close" aria-label="Close" data-testid="assistant-chat-close">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
         </div>
-        <div id="assistant-chat-messages"></div>
-        <div id="assistant-chat-input-area">
-            <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
-            <button id="assistant-chat-send" aria-label="Send">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
-            </button>
+        <div id="assistant-chat-body">
+            <aside id="assistant-chat-sidebar" data-testid="assistant-chat-sidebar" aria-label="Chat history">
+                <div class="assistant-chat-list-head">
+                    <span class="assistant-chat-list-title">History</span>
+                    <label class="assistant-chat-archived-toggle">
+                        <input type="checkbox" id="assistant-chat-archived-sidebar"> Archived
+                    </label>
+                </div>
+                <div id="assistant-chat-sidebar-list" class="assistant-chat-history-list"></div>
+            </aside>
+            <div id="assistant-chat-main">
+                <div id="assistant-chat-messages"></div>
+                <div id="assistant-chat-input-area">
+                    <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
+                    <button id="assistant-chat-send" aria-label="Send">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Slide-in history overlay — compact view only, shared renderer -->
+        <div id="assistant-chat-history-overlay" data-testid="assistant-chat-history-overlay" hidden>
+            <div class="assistant-chat-overlay-head">
+                <span class="assistant-chat-list-title">History</span>
+                <label class="assistant-chat-archived-toggle">
+                    <input type="checkbox" id="assistant-chat-archived-overlay"> Archived
+                </label>
+                <button id="assistant-chat-overlay-close" aria-label="Close history" data-testid="assistant-chat-overlay-close">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="assistant-chat-overlay-list" class="assistant-chat-history-list"></div>
         </div>
     </div>
     <button id="assistant-chat-bubble" aria-label="Open assistant chat">

@@ -37,6 +37,9 @@ class AssistantServiceTest {
     private AssistantMessageRepository messageRepository;
 
     @Mock
+    private AssistantConversationRepository conversationRepository;
+
+    @Mock
     private AssistantToolRegistry toolRegistry;
 
     @Mock
@@ -67,8 +70,24 @@ class AssistantServiceTest {
         adminUser = new User("admin1", "pass", Role.ADMIN);
         adminUser.setId(3L);
 
-        lenient().when(messageRepository.findByUserOrderByCreatedAtAsc(any()))
+        lenient().when(messageRepository.findByUserOrderByCreatedAtAscIdAsc(any()))
                 .thenReturn(List.of());
+
+        // Conversation resolution: no existing thread — created one gets an id
+        // from the (mocked) identity column.
+        lenient().when(conversationRepository
+                        .findFirstByUserAndArchivedAtIsNullOrderByLastActivityAtDesc(any()))
+                .thenReturn(java.util.Optional.empty());
+        lenient().when(conversationRepository.save(any(AssistantConversation.class)))
+                .thenAnswer(inv -> {
+                    AssistantConversation c = inv.getArgument(0);
+                    if (c.getId() == null) {
+                        c.setId(4242L);
+                    }
+                    return c;
+                });
+        lenient().when(conversationRepository.findById(4242L))
+                .thenAnswer(inv -> java.util.Optional.of(new AssistantConversation(staffUser)));
 
         // Default: no providers configured
         lenient().when(configProperties.getProviders()).thenReturn(List.of());
@@ -99,8 +118,8 @@ class AssistantServiceTest {
                 .thenReturn(Set.of("getOrderStatus", "getMenuItems", "getSalesTotals",
                         "getTopSellingItems", "getInventoryLevel", "getKitchenQueueSummary"));
 
-        assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), chatCompletionClient, configProperties,
+        assistantService = new AssistantService(messageRepository, conversationRepository,
+                toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
                 fallbackHandler, accessGuard);
     }
 
@@ -230,8 +249,8 @@ class AssistantServiceTest {
         when(fallbackHandler.unavailableMessage(Role.STAFF))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
-        assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), chatCompletionClient, configProperties,
+        assistantService = new AssistantService(messageRepository, conversationRepository,
+                toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
                 fallbackHandler, accessGuard);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
@@ -274,8 +293,8 @@ class AssistantServiceTest {
         when(fallbackHandler.unavailableMessage(Role.STAFF))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
-        assistantService = new AssistantService(messageRepository, toolRegistry,
-                new ObjectMapper(), chatCompletionClient, configProperties,
+        assistantService = new AssistantService(messageRepository, conversationRepository,
+                toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
                 fallbackHandler, accessGuard);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
