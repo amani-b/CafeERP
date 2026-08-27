@@ -36,6 +36,16 @@ public class AssistantMessage {
     @JsonIgnore
     private User user;
 
+    /**
+     * The conversation ("thread") this message belongs to. Null for legacy
+     * rows created before conversations existed — those are only reachable via
+     * the legacy per-user history endpoint, not the conversation UI.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conversation_id")
+    @JsonIgnore
+    private AssistantConversation conversation;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AssistantMessageRole role;
@@ -62,6 +72,14 @@ public class AssistantMessage {
         this.content = content;
     }
 
+    public AssistantMessage(User user, AssistantMessageRole role, String content,
+                            AssistantConversation conversation) {
+        this.user = user;
+        this.role = role;
+        this.content = content;
+        this.conversation = conversation;
+    }
+
     public Long getId() {
         return id;
     }
@@ -76,6 +94,14 @@ public class AssistantMessage {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public AssistantConversation getConversation() {
+        return conversation;
+    }
+
+    public void setConversation(AssistantConversation conversation) {
+        this.conversation = conversation;
     }
 
     public AssistantMessageRole getRole() {

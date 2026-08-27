@@ -1,5 +1,7 @@
 package com.cafeerp.user;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -41,6 +43,16 @@ public class User {
 
     @Column(nullable = false)
     private boolean mustChangePassword = false;
+
+    /**
+     * SOFT DELETE: when non-null the account is deactivated — it cannot log in
+     * and is hidden from default user lists — but the row and every FK that
+     * references it (e.g. assistant_message.user_id) stay intact. Null means
+     * active. See {@code V9__add_user_soft_delete.sql}.
+     */
+    @JsonIgnore
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     public User() {
     }
@@ -89,5 +101,19 @@ public class User {
 
     public void setMustChangePassword(boolean mustChangePassword) {
         this.mustChangePassword = mustChangePassword;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
+
+    /** True when this account has been soft-deleted (deactivated). */
+    @JsonIgnore
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 }

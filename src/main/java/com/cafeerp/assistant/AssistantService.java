@@ -1,6 +1,7 @@
 package com.cafeerp.assistant;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +27,7 @@ public class AssistantService {
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
     private final AssistantMessageRepository messageRepository;
+    private final AssistantConversationRepository conversationRepository;
     private final AssistantToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
     private final ChatCompletionClient chatCompletionClient;
@@ -34,6 +36,7 @@ public class AssistantService {
     private final AssistantAccessGuard accessGuard;
 
     public AssistantService(AssistantMessageRepository messageRepository,
+                            AssistantConversationRepository conversationRepository,
                             AssistantToolRegistry toolRegistry,
                             ObjectMapper objectMapper,
                             ChatCompletionClient chatCompletionClient,
@@ -41,6 +44,7 @@ public class AssistantService {
                             DeterministicFallbackHandler fallbackHandler,
                             AssistantAccessGuard accessGuard) {
         this.messageRepository = messageRepository;
+        this.conversationRepository = conversationRepository;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
         this.chatCompletionClient = chatCompletionClient;
@@ -90,15 +94,31 @@ public class AssistantService {
      * "status of order 999999").
      */
     public AssistantReply processMessage(User user, String userMessage) {
-        // 1. Persist the user's message
-        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.USER, userMessage));
+        return processMessage(user, userMessage, null);
+    }
+
+    /**
+     * Conversation-aware variant: the turn is persisted into the given
+     * conversation (or the user's current one when {@code conversationId} is
+     * null, creating one if none exists). See {@link #processMessage(User, String)}
+     * for the full flow description.
+     */
+    public AssistantReply processMessage(User user, String userMessage, Long conversationId) {
+        AssistantConversation conversation = resolveConversation(user, conversationId);
+
+        // 1. Persist the user's message — synchronously, in its own committed
+        //    transaction, BEFORE any provider work. Chat logging is never
+        //    deferred/async, so the turn is queryable the moment this method
+        //    returns (and even if a provider later hangs or fails).
+        saveMessage(user, AssistantMessageRole.USER, userMessage, conversation);
+        touchConversation(conversation, userMessage);
 
         // 1b. Hard access gate — structural restriction for sensitive topics.
         AssistantAccessGuard.Decision decision = accessGuard.check(user.getRole(), userMessage);
         if (!decision.allowed()) {
             log.info("Assistant access guard blocked restricted topic for user '{}'", user.getUsername());
             AssistantReply denial = new AssistantReply(decision.denialText(), List.of());
-            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, denial.text()));
+            saveMessage(user, AssistantMessageRole.ASSISTANT, denial.text(), conversation);
             return denial;
         }
 
@@ -112,15 +132,20 @@ public class AssistantService {
             log.debug("Query matched canonical pattern; routing to deterministic handler first for user '{}'", user.getUsername());
             AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
             if (tier2Reply != null) {
-                messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+                saveMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text(), conversation);
                 return tier2Reply;
             }
             // Deterministic handler declined (shouldn't happen if shouldRouteToDeterministicFirst returned true,
             // but fall through to AI just in case)
         }
 
-        // 3. Load conversation history for AI providers
-        List<AssistantMessage> history = messageRepository.findByUserOrderByCreatedAtAsc(user);
+        // 3. Load conversation history for AI providers. When the turn belongs
+        //    to a conversation, context is scoped to that thread (so switching
+        //    conversations does not bleed unrelated questions into the prompt).
+        //    Legacy rows without a conversation keep the per-user thread.
+        List<AssistantMessage> history = conversation.getId() != null
+                ? messageRepository.findByConversationOrderByCreatedAtAscIdAsc(conversation)
+                : messageRepository.findByUserOrderByCreatedAtAscIdAsc(user);
 
         // 4. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -152,7 +177,7 @@ public class AssistantService {
             }
 
             AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
-                    user);
+                    user, conversation);
             if (reply != null) {
                 return reply;
             }
@@ -164,14 +189,14 @@ public class AssistantService {
         if (tier2Reply != null) {
             log.debug("Tier 2 matched query for user '{}': pattern={}",
                     user.getUsername(), userMessage);
-            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text()));
+            saveMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text(), conversation);
             return tier2Reply;
         }
 
         // 8. Tier 2 also found no match — return unavailable message
         log.warn("Tier 2 fallback also found no match for user '{}'; returning unavailable message", user.getUsername());
         AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole());
-        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text()));
+        saveMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text(), conversation);
         return unavailable;
     }
 
@@ -208,7 +233,11 @@ public class AssistantService {
     public AssistantReply getFallbackReply(User user) {
         AssistantReply reply = fallbackHandler.unavailableMessage(user.getRole());
         try {
-            messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, reply.text()));
+            // Attach to the user's current conversation so even a turn that
+            // blew up mid-flight is queryable in history immediately.
+            AssistantConversation conversation = resolveConversation(user, null);
+            saveMessage(user, AssistantMessageRole.ASSISTANT, reply.text(), conversation);
+            touchConversation(conversation, null);
         } catch (Exception e) {
             log.error("Failed to persist fallback assistant message for user '{}'", user.getUsername(), e);
         }
@@ -224,7 +253,8 @@ public class AssistantService {
                                        List<Map<String, Object>> messages,
                                        List<Map<String, Object>> tools,
                                        Set<String> allowedToolNames,
-                                       User user) {
+                                       User user,
+                                       AssistantConversation conversation) {
         log.info("Attempting provider: {} (model: {})", provider.name(), provider.model());
 
         // Deep-copy messages so each provider starts fresh
@@ -249,7 +279,7 @@ public class AssistantService {
             if (toolCalls == null || toolCalls.isEmpty()) {
                 // Final response — persist and return
                 String finalText = content != null ? content : "";
-                messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, finalText));
+                saveMessage(user, AssistantMessageRole.ASSISTANT, finalText, conversation);
 
                 List<SourceLink> links = firedToolNames.stream()
                         .map(name -> {
@@ -311,7 +341,7 @@ public class AssistantService {
         log.warn("Provider {} hit {} round cap", provider.name(), MAX_TOOL_ROUNDS);
         String fallback = "I've gathered some information but need more detail to give a complete answer. "
                 + "Could you rephrase or narrow down your question?";
-        messageRepository.save(new AssistantMessage(user, AssistantMessageRole.ASSISTANT, fallback));
+        saveMessage(user, AssistantMessageRole.ASSISTANT, fallback, conversation);
 
         List<SourceLink> links = firedToolNames.stream()
                 .map(name -> {
@@ -326,11 +356,13 @@ public class AssistantService {
     }
 
     /**
-     * Returns the full message thread for a given user (read-only).
+     * Returns the full message thread for a given user (read-only), legacy
+     * single-thread view. Ordered by createdAt then id so a question and its
+     * answer persisted in the same microsecond still sort deterministically.
      */
     @Transactional(readOnly = true)
     public List<AssistantMessage> getHistory(User user) {
-        return messageRepository.findByUserOrderByCreatedAtAsc(user);
+        return messageRepository.findByUserOrderByCreatedAtAscIdAsc(user);
     }
 
     /**
@@ -339,6 +371,86 @@ public class AssistantService {
     @Transactional(readOnly = true)
     public List<User> getUsersWithMessages() {
         return messageRepository.findDistinctUsersWithMessages();
+    }
+
+    // ---------------------------------------------------------------
+    //  Conversations (chat history UI)
+    // ---------------------------------------------------------------
+
+    /**
+     * Resolves the conversation a chat turn should attach to. When
+     * {@code conversationId} is given it must exist, belong to the user, and
+     * not be archived — otherwise a 404-mapped IllegalArgumentException is
+     * thrown (the UI only ever passes its own conversation ids). When null,
+     * the user's most recent non-archived conversation is reused, creating a
+     * fresh one if none exists (legacy clients / first ever message).
+     */
+    @Transactional
+    public AssistantConversation resolveConversation(User user, Long conversationId) {
+        if (conversationId != null) {
+            AssistantConversation conversation = conversationRepository.findById(conversationId)
+                    .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+            if (!conversation.getUser().getId().equals(user.getId())) {
+                // Never leak or mutate another user's thread.
+                throw new IllegalArgumentException("Conversation not found");
+            }
+            return conversation;
+        }
+        return conversationRepository
+                .findFirstByUserAndArchivedAtIsNullOrderByLastActivityAtDesc(user)
+                .orElseGet(() -> conversationRepository.save(new AssistantConversation(user)));
+    }
+
+    /** Starts a fresh conversation for the user ("New chat" button). */
+    @Transactional
+    public AssistantConversation createConversation(User user) {
+        AssistantConversation conversation = conversationRepository.save(new AssistantConversation(user));
+        log.debug("New assistant conversation id={} for user '{}'", conversation.getId(), user.getUsername());
+        return conversation;
+    }
+
+    /** Default history list for the sidebar/overlay — newest activity first. */
+    @Transactional(readOnly = true)
+    public List<AssistantConversation> listConversations(User user, boolean archived) {
+        return archived
+                ? conversationRepository.findByUserAndArchivedAtIsNotNullOrderByLastActivityAtDesc(user)
+                : conversationRepository.findByUserAndArchivedAtIsNullOrderByLastActivityAtDesc(user);
+    }
+
+    /** Messages of one conversation; enforces ownership. */
+    @Transactional(readOnly = true)
+    public List<AssistantMessage> getConversationMessages(User user, Long conversationId) {
+        AssistantConversation conversation = resolveConversation(user, conversationId);
+        return messageRepository.findByConversationOrderByCreatedAtAscIdAsc(conversation);
+    }
+
+    // ---------------------------------------------------------------
+    //  Chat persistence helpers
+    // ---------------------------------------------------------------
+
+    /**
+     * Persists one chat message synchronously. Every call site in the chat
+     * flow routes through here so a turn's user message and assistant reply
+     * always land in the same conversation and commit immediately.
+     */
+    private void saveMessage(User user, AssistantMessageRole role, String content,
+                             AssistantConversation conversation) {
+        messageRepository.save(new AssistantMessage(user, role, content, conversation));
+    }
+
+    /**
+     * Bumps the conversation's activity timestamp and derives its title from
+     * the first user message. Called once per user turn.
+     */
+    private void touchConversation(AssistantConversation conversation, String firstUserMessage) {
+        if (conversation == null || conversation.getId() == null) {
+            return; // legacy/edge paths without a conversation
+        }
+        if (conversation.getTitle() == null && firstUserMessage != null) {
+            conversation.setTitle(AssistantConversation.deriveTitle(firstUserMessage));
+        }
+        conversation.setLastActivityAt(LocalDateTime.now());
+        conversationRepository.save(conversation);
     }
 
     // ---------------------------------------------------------------

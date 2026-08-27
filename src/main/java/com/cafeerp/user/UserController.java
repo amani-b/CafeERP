@@ -1,5 +1,7 @@
 package com.cafeerp.user;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -8,11 +10,17 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.validation.Valid;
 
 @Controller
 @RequestMapping("/users")
+// NOTE: /users/** is already ADMIN-only in SecurityConfig's filter chain (the
+// primary server-side enforcement); these @PreAuthorize annotations are the
+// second layer, evaluated on the handler itself.
+@PreAuthorize("hasRole('ADMIN')")
 public class UserController {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
@@ -24,8 +32,11 @@ public class UserController {
     }
 
     @GetMapping
-    public String list(Model model) {
-        model.addAttribute("users", userService.findAll());
+    public String list(@RequestParam(value = "showInactive", required = false) String showInactive,
+                       Model model) {
+        boolean inactive = "1".equals(showInactive) || "true".equals(showInactive);
+        model.addAttribute("users", inactive ? userService.findAllDeleted() : userService.findAll());
+        model.addAttribute("showInactive", inactive);
         return "users/list";
     }
 
@@ -80,5 +91,74 @@ public class UserController {
         user.setId(id);
         userService.updateUser(user);
         return "redirect:/users";
+    }
+
+    // ---------------------------------------------------------------
+    //  Deletion (admin) — soft delete is the default/primary action;
+    //  hard delete is irreversible and double-confirmed.
+    // ---------------------------------------------------------------
+
+    /**
+     * SOFT DELETE — deactivates the account. The user can no longer log in and
+     * is hidden from the default list, but all data and references are kept.
+     * Reversible via {@link #activate}.
+     */
+    @PostMapping("/deactivate/{id}")
+    public String deactivate(@PathVariable Long id,
+                             Authentication authentication,
+                             RedirectAttributes redirectAttributes) {
+        String error = selfDeleteGuard(id, authentication);
+        if (error != null) {
+            redirectAttributes.addFlashAttribute("errorMessage", error);
+            return "redirect:/users";
+        }
+        User user = userService.deactivateUser(id);
+        redirectAttributes.addFlashAttribute("successMessage",
+                "User '" + user.getUsername() + "' deactivated. They can no longer log in.");
+        return "redirect:/users";
+    }
+
+    /** Reverses a soft delete — the account is active and can log in again. */
+    @PostMapping("/activate/{id}")
+    public String activate(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        User user = userService.reactivateUser(id);
+        redirectAttributes.addFlashAttribute("successMessage",
+                "User '" + user.getUsername() + "' reactivated.");
+        return "redirect:/users";
+    }
+
+    /**
+     * HARD DELETE — permanent, irreversible. Requires {@code confirmName} to
+     * equal the target's username (type-to-confirm), enforced server-side; the
+     * UI additionally gates the button behind a type-to-confirm modal.
+     */
+    @PostMapping("/delete/{id}")
+    public String delete(@PathVariable Long id,
+                         @RequestParam(value = "confirmName", required = false) String confirmName,
+                         Authentication authentication,
+                         RedirectAttributes redirectAttributes) {
+        String error = selfDeleteGuard(id, authentication);
+        if (error != null) {
+            redirectAttributes.addFlashAttribute("errorMessage", error);
+            return "redirect:/users";
+        }
+        User user = userService.findById(id);
+        try {
+            userService.hardDeleteUser(id, confirmName);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "User '" + user.getUsername() + "' permanently deleted.");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/users";
+    }
+
+    /** An admin must not be able to deactivate/delete their own account. */
+    private String selfDeleteGuard(Long id, Authentication authentication) {
+        User target = userService.findById(id);
+        if (authentication != null && authentication.getName().equals(target.getUsername())) {
+            return "You cannot deactivate or delete your own account.";
+        }
+        return null;
     }
 }
