@@ -19,6 +19,7 @@
     // ------------------------------ state ------------------------------
     var panelOpen = false;
     var fullscreen = false;      // OFF by default — user-triggered only
+    var sidebarCollapsed = false; // fullscreen sidebar toggle (mobile-friendly)
     var overlayOpen = false;     // compact-view history slide-in
     var currentConversationId = null;
     var sendInFlight = false;    // guards the history-render race
@@ -196,6 +197,11 @@
             item.addEventListener('click', function () {
                 switchConversation(c.id);
                 if (overlayOpen) closeHistoryOverlay();
+                // On narrow screens, collapse the fullscreen sidebar after
+                // picking a thread so the conversation gets the full width.
+                if (fullscreen && isNarrowViewport() && !sidebarCollapsed) {
+                    setSidebarVisible(false);
+                }
             });
             container.appendChild(item);
         });
@@ -379,12 +385,26 @@
         closeHistoryOverlay();
     }
 
+    function setSidebarVisible(on) {
+        sidebarCollapsed = !on;
+        widget.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+        var toggle = document.getElementById('assistant-chat-sidebar-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', String(on));
+    }
+
+    // Sidebar starts collapsed on narrow screens so the chatroom gets the
+    // full width; history stays reachable via the header buttons.
+    function isNarrowViewport() {
+        return window.innerWidth < 700;
+    }
+
     function setFullscreen(on) {
         fullscreen = !!on;
         widget.classList.toggle('fullscreen', fullscreen);
         document.body.classList.toggle('assistant-chat-fullscreen-open', fullscreen);
         if (fullscreen) {
             closeHistoryOverlay(); // persistent sidebar replaces the overlay
+            setSidebarVisible(!isNarrowViewport());
             refreshHistoryLists();
         }
     }
@@ -430,6 +450,12 @@
     document.getElementById('assistant-chat-fullscreen').addEventListener('click', function () {
         setFullscreen(!fullscreen);
     });
+    var sidebarToggle = document.getElementById('assistant-chat-sidebar-toggle');
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function () {
+            setSidebarVisible(sidebarCollapsed);
+        });
+    }
 
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {

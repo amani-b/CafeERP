@@ -479,6 +479,10 @@
 
 #assistant-chat-widget.fullscreen #assistant-chat-sidebar { display: flex; }
 
+/* Collapsed sidebar (toggle button / narrow screens): give the chat the
+   full width — the history overlay button reappears in the header. */
+#assistant-chat-widget.fullscreen.sidebar-collapsed #assistant-chat-sidebar { display: none; }
+
 .assistant-chat-list-head {
     display: flex;
     align-items: center;
@@ -623,7 +627,11 @@
 }
 
 /* History button is pointless in fullscreen (sidebar is already open). */
-#assistant-chat-widget.fullscreen #assistant-chat-history-btn { display: none; }
+#assistant-chat-widget.fullscreen:not(.sidebar-collapsed) #assistant-chat-history-btn { display: none; }
+
+/* History sidebar toggle — fullscreen only (compact uses the overlay). */
+#assistant-chat-sidebar-toggle { display: none; }
+#assistant-chat-widget.fullscreen #assistant-chat-sidebar-toggle { display: flex; }
 
 /* ─── Fullscreen mode — user-triggered via the expand button ─── */
 #assistant-chat-widget.fullscreen {
