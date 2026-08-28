@@ -120,6 +120,51 @@ class AssistantConversationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void scheduledJobPurgesConversationsArchivedBeyondRetention() throws Exception {
+        MockHttpSession staff = login("staff", PLACEHOLDER_PASSWORD);
+
+        long freshConversation = startNewConversation(staff);
+        sendChat(staff, "retention canary fresh");
+
+        long oldConversation = startNewConversation(staff);
+        sendChat(staff, "retention canary old");
+
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+
+        // Archive the old conversation via the job, then backdate its
+        // archived_at past the 365-day purge retention.
+        jdbc.update("UPDATE assistant_conversation SET last_activity_at = ? WHERE id = ?",
+                java.time.LocalDateTime.now().minusDays(31), oldConversation);
+        archivalJob.archiveStaleConversations();
+        jdbc.update("UPDATE assistant_conversation SET archived_at = ? WHERE id = ?",
+                java.time.LocalDateTime.now().minusDays(370), oldConversation);
+
+        // The fresh conversation is also archived, but only yesterday —
+        // it must survive the purge.
+        jdbc.update(
+                "UPDATE assistant_conversation SET last_activity_at = ?, archived_at = ? WHERE id = ?",
+                java.time.LocalDateTime.now().minusDays(31),
+                java.time.LocalDateTime.now().minusDays(1), freshConversation);
+
+        int purged = archivalJob.purgeExpiredArchivedConversations();
+        assertThat(purged).isGreaterThanOrEqualTo(1);
+
+        // Past-retention conversation is PERMANENTLY gone — messages first,
+        // then the conversation row.
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM assistant_message WHERE conversation_id = ?",
+                Long.class, oldConversation)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM assistant_conversation WHERE id = ?",
+                Long.class, oldConversation)).isZero();
+
+        // Recently archived conversation is recoverable still.
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM assistant_conversation WHERE id = ?",
+                Long.class, freshConversation)).isEqualTo(1);
+    }
+
+    @Test
     void scheduledJobArchivesIdleConversations_hiddenButRecoverable() throws Exception {
         MockHttpSession staff = login("staff", PLACEHOLDER_PASSWORD);
         startNewConversation(staff);
