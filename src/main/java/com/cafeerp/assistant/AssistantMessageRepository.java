@@ -27,4 +27,7 @@ public interface AssistantMessageRepository extends JpaRepository<AssistantMessa
 
     /** Hard-delete support: remove a user's chat history. */
     void deleteByUser(User user);
+
+    /** Hard-purge support: remove one conversation's messages. */
+    void deleteByConversation(AssistantConversation conversation);
 }

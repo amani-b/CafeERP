@@ -22,6 +22,9 @@ public interface AssistantConversationRepository extends JpaRepository<Assistant
     /** Candidates for the auto-archival scheduled job. */
     List<AssistantConversation> findByArchivedAtIsNullAndLastActivityAtBefore(LocalDateTime cutoff);
 
+    /** Candidates for the hard-purge scheduled job (archived beyond retention). */
+    List<AssistantConversation> findByArchivedAtIsNotNullAndArchivedAtBefore(LocalDateTime cutoff);
+
     /** Hard-delete support: remove a user's conversations (messages first). */
     void deleteByUser(User user);
 }
