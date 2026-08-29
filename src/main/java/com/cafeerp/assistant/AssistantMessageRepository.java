@@ -22,8 +22,8 @@ public interface AssistantMessageRepository extends JpaRepository<AssistantMessa
     /** All messages of one conversation, oldest first, deterministic order. */
     List<AssistantMessage> findByConversationOrderByCreatedAtAscIdAsc(AssistantConversation conversation);
 
-    @Query("select distinct am.user from AssistantMessage am")
-    List<User> findDistinctUsersWithMessages();
+    @Query("select am.user from AssistantMessage am group by am.user order by max(am.createdAt) desc")
+    List<User> findUsersWithMessagesOrderByMostRecent();
 
     /** Hard-delete support: remove a user's chat history. */
     void deleteByUser(User user);

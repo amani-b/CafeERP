@@ -3,6 +3,7 @@ package com.cafeerp.assistant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +56,7 @@ class AssistantMessageRepositoryTest {
     }
 
     @Test
-    void findDistinctUsersWithMessages() {
+    void findUsersWithMessagesOrderByMostRecent() {
         User alice = userRepository.save(new User("alice", "pass", Role.STAFF));
         User bob = userRepository.save(new User("bob", "pass", Role.STAFF));
         User charlie = userRepository.save(new User("charlie", "pass", Role.KITCHEN));
@@ -64,10 +65,11 @@ class AssistantMessageRepositoryTest {
         assistantMessageRepository.save(new AssistantMessage(alice, AssistantMessageRole.USER, "Hi"));
         assistantMessageRepository.save(new AssistantMessage(bob, AssistantMessageRole.USER, "Hello"));
 
-        List<User> usersWithMessages = assistantMessageRepository.findDistinctUsersWithMessages();
+        List<User> usersWithMessages = assistantMessageRepository.findUsersWithMessagesOrderByMostRecent();
 
         assertEquals(2, usersWithMessages.size());
         assertTrue(usersWithMessages.stream().anyMatch(u -> u.getUsername().equals("alice")));
         assertTrue(usersWithMessages.stream().anyMatch(u -> u.getUsername().equals("bob")));
+        assertFalse(usersWithMessages.stream().anyMatch(u -> u.getUsername().equals("charlie")));
     }
 }
