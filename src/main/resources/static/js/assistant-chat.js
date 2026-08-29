@@ -313,47 +313,40 @@
         addMessage('user', text, null);
         setLoading(true);
 
-        var ensureConversation = currentConversationId
-            ? Promise.resolve({ id: currentConversationId })
-            : fetch('/assistant/conversations', {
-                  method: 'POST',
-                  headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                  body: '{}'
-              }).then(function (r) {
-                  if (!r.ok) throw new Error('conversation create failed');
-                  return r.json();
-              });
-
-        ensureConversation
-            .then(function (conversation) {
-                currentConversationId = conversation.id;
-                return fetch('/assistant/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, conversationId: currentConversationId })
-                });
-            })
-            .then(function (r) {
-                if (!r.ok) throw new Error('Request failed');
-                return r.json();
-            })
-            .then(function (reply) {
-                setLoading(false);
-                sendInFlight = false;
-                addAssistantMessageWithReveal(reply.text, reply.links || []);
-                // The turn is now durably persisted (server writes both sides
-                // synchronously before responding) — re-sync the thread from
-                // the server so the pane always matches the durable history,
-                // and refresh the sidebar/overlay lists (title derived).
-                loadConversationMessages();
-                refreshHistoryLists();
-            })
-            .catch(function () {
-                setLoading(false);
-                sendInFlight = false;
-                showError('Failed to get a response. Please try again.');
-                refreshHistoryLists();
-            });
+    // The server resolves/creates the thread itself when no conversationId
+    // is given (and returns the id it landed in) — no pre-flight
+    // "create conversation" round-trip, which used to fail silently on a
+    // stale/missing CSRF token and drop the turn before it was logged.
+    fetch('/assistant/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+                currentConversationId ? { message: text, conversationId: currentConversationId }
+                                      : { message: text })
+        })
+        .then(function (r) {
+            if (!r.ok) throw new Error('Request failed');
+            return r.json();
+        })
+        .then(function (reply) {
+            setLoading(false);
+            sendInFlight = false;
+            // The server tells us which thread the turn persisted into.
+            if (reply.conversationId) currentConversationId = reply.conversationId;
+            addAssistantMessageWithReveal(reply.text, reply.links || []);
+            // The turn is now durably persisted (server writes both sides
+            // synchronously before responding) — re-sync the thread from
+            // the server so the pane always matches the durable history,
+            // and refresh the sidebar/overlay lists (title derived).
+            loadConversationMessages();
+            refreshHistoryLists();
+        })
+        .catch(function () {
+            setLoading(false);
+            sendInFlight = false;
+            showError('Failed to get a response. Please try again.');
+            refreshHistoryLists();
+        });
     }
 
     // ------------------------- panel chrome --------------------------
