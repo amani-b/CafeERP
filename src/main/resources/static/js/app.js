@@ -129,4 +129,63 @@
       if (alertEl) alertEl.remove();
     });
   });
+
+  /* ---- Deploy self-announcement ("updates available") banner ----
+     Compares the build version stamped into the page at build time
+     (<meta name="build-version">) against what the server currently
+     reports (GET /build-version). On a mismatch, shows a small
+     non-intrusive banner offering a refresh — NEVER auto-refreshes. */
+  (function () {
+    var CHECK_INTERVAL_MS = 60000;
+
+    function pageVersion() {
+      var meta = document.querySelector('meta[name="build-version"]');
+      return meta ? meta.getAttribute('content') : null;
+    }
+
+    function showBanner() {
+      if (document.getElementById('build-update-banner')) return;
+      var banner = document.createElement('div');
+      banner.id = 'build-update-banner';
+      banner.setAttribute('role', 'status');
+      banner.innerHTML =
+        '<span class="build-update-text">Updates available — refresh to see the latest changes.</span>' +
+        '<button type="button" class="build-update-btn">Refresh</button>' +
+        '<button type="button" class="build-update-dismiss" aria-label="Dismiss">&times;</button>';
+      banner.querySelector('.build-update-btn').addEventListener('click', function () {
+        window.location.reload();
+      });
+      banner.querySelector('.build-update-dismiss').addEventListener('click', function () {
+        banner.remove();
+      });
+      document.body.appendChild(banner);
+    }
+
+    function check() {
+      var current = pageVersion();
+      if (!current) return; // page without the stamp — nothing to compare
+      fetch('/build-version', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (serverVersion) {
+          if (serverVersion && serverVersion.trim() !== current) showBanner();
+        })
+        .catch(function () { /* network hiccup — try again next tick */ });
+    }
+
+    function start() {
+      check();
+      setInterval(check, CHECK_INTERVAL_MS);
+      // Also check on next navigation/interaction (tab becomes visible).
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) check();
+      });
+      window.addEventListener('focus', check);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start);
+    } else {
+      start();
+    }
+  })();
 })();

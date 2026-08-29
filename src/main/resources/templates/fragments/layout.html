@@ -10,6 +10,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} + ' - Cafe ERP'">Cafe ERP</title>
 
+    <!-- Build version stamp (generated at build time). The update-banner
+         script compares this against GET /build-version to detect a new
+         deploy and prompt — never force — a refresh. -->
+    <meta name="build-version" th:content="${buildVersion}">
+
     <!-- Franken UI v2.1.2 CSS is now imported via @import layer(franken)
          inside app.css so it participates in the cascade order correctly.
          Only the JS core.iife.js is loaded directly here. -->

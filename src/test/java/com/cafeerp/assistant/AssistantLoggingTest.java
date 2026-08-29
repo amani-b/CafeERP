@@ -122,4 +122,74 @@ public class AssistantLoggingTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(list).contains("ai path canary two");
     }
+
+    @Test
+    void selfTest_turnIsQueryableInAssistantLogsAdminWithinSeconds() throws Exception {
+        // The requirement: send a message, then confirm it shows up in the
+        // Assistant Logs admin view (live, not just in the archived set)
+        // within a few seconds. Persistence is synchronous, so the very
+        // first poll — right after the response — must already see it.
+        MockHttpSession staff = login("staff", PLACEHOLDER_PASSWORD);
+        MockHttpSession admin = login("admin", PLACEHOLDER_PASSWORD);
+        String message = "assistant logs self-test canary";
+
+        MvcResult chatResult = mockMvc.perform(post("/assistant/chat").session(staff)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(Map.of("message", message))))
+                .andReturn();
+        assertThat(chatResult.getResponse().getStatus()).isEqualTo(200);
+
+        // Response body carries the thread id the turn persisted into.
+        Map<?, ?> reply = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                chatResult.getResponse().getContentAsString(), Map.class);
+        assertThat(reply.get("conversationId"))
+                .as("chat response must report the conversationId so the client "
+                        + "never needs a separate create-conversation pre-flight")
+                .isNotNull();
+
+        // Poll the Assistant Logs admin views (user list -> thread) for up
+        // to 5 seconds; the very first poll should already succeed.
+        long deadline = System.currentTimeMillis() + 5000;
+        AssertionError lastFailure = null;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                MvcResult listPage = mockMvc.perform(get("/admin/assistant").session(admin))
+                        .andExpect(status().isOk()).andReturn();
+                String listHtml = listPage.getResponse().getContentAsString();
+                assertThat(listHtml).as("user must appear in the Assistant Logs list")
+                        .contains("staff");
+
+                long staffId = staffUserId(admin, "staff");
+                MvcResult threadPage = mockMvc.perform(
+                                get("/admin/assistant/" + staffId).session(admin))
+                        .andExpect(status().isOk()).andReturn();
+                assertThat(threadPage.getResponse().getContentAsString())
+                        .as("the sent message must be visible in the user's logged thread")
+                        .contains(message);
+                lastFailure = null;
+                break;
+            } catch (AssertionError e) {
+                lastFailure = e;
+                Thread.sleep(250);
+            }
+        }
+        if (lastFailure != null) throw lastFailure;
+    }
+
+    private long staffUserId(MockHttpSession admin, String username) throws Exception {
+        MvcResult listPage = mockMvc.perform(get("/admin/assistant").session(admin))
+                .andExpect(status().isOk()).andReturn();
+        String html = listPage.getResponse().getContentAsString();
+        // Each user is one <tr> whose second cell holds the username and
+        // whose last cell links to /admin/assistant/{id}.
+        for (String row : html.split("<tr")) {
+            if (row.contains(">" + username + "<")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern
+                        .compile("/admin/assistant/(\\d+)").matcher(row);
+                assertThat(m.find()).as("thread link in %s's row", username).isTrue();
+                return Long.parseLong(m.group(1));
+            }
+        }
+        throw new AssertionError("No Assistant Logs row found for user " + username);
+    }
 }

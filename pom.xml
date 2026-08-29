@@ -19,6 +19,13 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- Build version stamp: injected into build-version.properties at build
+             time and served via /build-version so the frontend can detect a
+             new deploy and prompt (never force) a refresh. -->
+        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+        <!-- maven.build.timestamp is not directly resolvable by the resources
+             plugin; re-binding it makes it filterable as @build.timestamp@. -->
+        <build.timestamp>${maven.build.timestamp}</build.timestamp>
     </properties>
 
     <dependencies>
@@ -82,6 +89,25 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- Default resources, unfiltered. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>build-version.properties</exclude>
+                </excludes>
+            </resource>
+            <!-- Build version stamp: the ONLY filtered resource — Maven
+                 substitutes project.version + build timestamp at build time. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>build-version.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
