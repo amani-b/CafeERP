@@ -36,7 +36,11 @@ public class AssistantAdminController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        List<AssistantMessage> messages = assistantService.getHistory(user);
+        // Most recent first in the logs viewer. The canonical store order
+        // stays oldest-first (chat UI depends on it); only the admin
+        // transcript is presented newest-first.
+        List<AssistantMessage> messages = new java.util.ArrayList<>(assistantService.getHistory(user));
+        java.util.Collections.reverse(messages);
         model.addAttribute("messages", messages);
         model.addAttribute("userName", user.getUsername());
         return "assistant/admin-thread";

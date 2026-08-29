@@ -375,11 +375,11 @@ public class AssistantService {
     }
 
     /**
-     * Returns distinct users who have assistant messages.
+     * Returns users who have assistant messages, most recently active first.
      */
     @Transactional(readOnly = true)
     public List<User> getUsersWithMessages() {
-        return messageRepository.findDistinctUsersWithMessages();
+        return messageRepository.findUsersWithMessagesOrderByMostRecent();
     }
 
     // ---------------------------------------------------------------
