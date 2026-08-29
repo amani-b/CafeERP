@@ -25,6 +25,15 @@
         </div>
     </section>
 
+    <!-- Back to logs (kept at the top so it's reachable without scrolling
+         through a long transcript) -->
+    <div class="mb-6">
+        <a class="btn btn-secondary px-4 text-sm" th:href="@{/admin/assistant}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            <span class="btn-label">Back to Logs</span>
+        </a>
+    </div>
+
     <!-- Transcript -->
     <section class="card card-pad">
         <div th:if="${#lists.isEmpty(messages)}" class="empty-state">
@@ -61,14 +70,6 @@
             </div>
         </div>
     </section>
-
-    <!-- Back to logs -->
-    <div class="mt-8">
-        <a class="btn btn-secondary px-4 text-sm" th:href="@{/admin/assistant}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-            <span class="btn-label">Back to Logs</span>
-        </a>
-    </div>
 </main>
 
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
