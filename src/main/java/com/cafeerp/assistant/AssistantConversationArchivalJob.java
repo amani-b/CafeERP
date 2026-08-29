@@ -20,13 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
  *       users can recover archived threads via the history "Archived"
  *       filter.</li>
  *   <li><b>Hard purge</b> — conversations archived for more than
- *       {@code assistant.chat.purge-after-days} (default 365, i.e. 12 months)
- *       are PERMANENTLY deleted, messages included. This is the agreed
- *       retention policy: archived chat logs have low long-term value and
- *       indefinite retention is a liability, while 12 months of recoverable
- *       history covers disputes about past assistant guidance. Tune or
- *       disable (set to a huge value) via configuration if the policy
- *       changes.</li>
+ *       {@code assistant.chat.purge-after-days} (default 90 days). Messages are
+ *       removed first, then the conversations — no other data is touched. Both
+ *       thresholds are configuration values, tunable without a redeploy.</li>
  * </ol>
  */
 @Component
@@ -77,7 +73,7 @@ public class AssistantConversationArchivalJob {
     /**
      * Nightly at 03:30 server time (after the archive run). PERMANENTLY
      * deletes conversations that have been soft-archived for more than
-     * {@code assistant.chat.purge-after-days} (default 365). Messages are
+     * {@code assistant.chat.purge-after-days} (default 90). Messages are
      * removed first, then the conversations — no other data is touched.
      * Irreversible by design.
      *

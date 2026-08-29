@@ -102,10 +102,19 @@ public class AssistantService {
      * conversation (or the user's current one when {@code conversationId} is
      * null, creating one if none exists). See {@link #processMessage(User, String)}
      * for the full flow description.
+     * <p>
+     * The returned reply always carries the {@code conversationId} the turn
+     * landed in, so clients do not need a separate "create conversation"
+     * round-trip (whose failure used to silently drop the whole turn).
      */
     public AssistantReply processMessage(User user, String userMessage, Long conversationId) {
         AssistantConversation conversation = resolveConversation(user, conversationId);
+        AssistantReply reply = processMessageInConversation(user, userMessage, conversation);
+        return new AssistantReply(reply.text(), reply.links(), conversation.getId());
+    }
 
+    private AssistantReply processMessageInConversation(User user, String userMessage,
+                                                        AssistantConversation conversation) {
         // 1. Persist the user's message — synchronously, in its own committed
         //    transaction, BEFORE any provider work. Chat logging is never
         //    deferred/async, so the turn is queryable the moment this method
@@ -653,7 +662,13 @@ public class AssistantService {
     //  Value objects
     // ---------------------------------------------------------------
 
-    public record AssistantReply(String text, List<SourceLink> links) {}
+    public record AssistantReply(String text, List<SourceLink> links, Long conversationId) {
+
+        /** Convenience constructor for replies that don't know their thread. */
+        public AssistantReply(String text, List<SourceLink> links) {
+            this(text, links, null);
+        }
+    }
 
     public record SourceLink(String label, String url) {}
 }
