@@ -6,7 +6,7 @@
 <div th:replace="~{fragments/layout :: mobile-header}"></div>
 <div th:replace="~{fragments/layout :: mobile-nav(activePage='orders')}"></div>
 
-<main class="app-main uk-margin-top receipt-container" style="display:flex;justify-content:center;padding:0 1rem;">
+<main class="app-main receipt-container" style="display:flex;justify-content:center;align-items:center;min-height:100vh;padding:1rem;">
   <div style="width:100%;max-width:32rem;">
     <div class="no-print uk-margin-bottom flex flex-wrap items-center gap-3">
         <a class="btn btn-secondary px-4 text-sm" th:href="@{/orders}"><span class="btn-label">&larr; Back to Orders</span></a>
