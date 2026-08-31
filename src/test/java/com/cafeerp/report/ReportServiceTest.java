@@ -3,15 +3,19 @@ package com.cafeerp.report;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,9 +24,13 @@ import com.cafeerp.order.OrderItemRepository;
 import com.cafeerp.order.OrderRepository;
 import com.cafeerp.report.ReportService.DateRange;
 import com.cafeerp.report.ReportService.ReportData;
+import com.cafeerp.settings.SettingsService;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
+
+    /** Fixed-offset zone (UTC+3, no DST) so expectations are machine-independent. */
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Africa/Addis_Ababa");
 
     @Mock
     private OrderRepository orderRepository;
@@ -30,10 +38,26 @@ class ReportServiceTest {
     @Mock
     private OrderItemRepository orderItemRepository;
 
+    @Mock
+    private SettingsService settingsService;
+
     @InjectMocks
     private ReportService reportService;
 
-    private final LocalDate today = LocalDate.now();
+    /** "Today" in the BUSINESS zone (what resolveDateRange now uses). */
+    private final LocalDate today = LocalDate.now(BUSINESS_ZONE);
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(settingsService.getTimeZone()).thenReturn(BUSINESS_ZONE);
+    }
+
+    /** Mirrors ReportService.toUtc: business-local wall time -> UTC. */
+    private static LocalDateTime toUtc(LocalDateTime businessLocal) {
+        return businessLocal.atZone(BUSINESS_ZONE)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+    }
 
     // -------------------------------------------------------
     //  Date-range resolution
@@ -104,8 +128,9 @@ class ReportServiceTest {
         LocalDateTime from = today.atStartOfDay();
         LocalDateTime to = today.atTime(23, 59, 59, 999_999_999);
 
-        when(orderRepository.sumTotalAmountBetween(from, to)).thenReturn(new BigDecimal("150.00"));
-        when(orderRepository.countByCreatedAtBetween(from, to)).thenReturn(5L);
+        // Repository queries receive UTC boundaries (business-local minus 3h)
+        when(orderRepository.sumTotalAmountBetween(toUtc(from), toUtc(to))).thenReturn(new BigDecimal("150.00"));
+        when(orderRepository.countByCreatedAtBetween(toUtc(from), toUtc(to))).thenReturn(5L);
 
         ItemSalesProjection item1 = mockProjection("Latte", 10L);
         ItemSalesProjection item2 = mockProjection("Cappuccino", 7L);
@@ -114,7 +139,7 @@ class ReportServiceTest {
         ItemSalesProjection item5 = mockProjection("Tea", 2L);
         ItemSalesProjection item6 = mockProjection("Hot Chocolate", 1L);
 
-        when(orderItemRepository.findTopSellingItems(from, to))
+        when(orderItemRepository.findTopSellingItems(toUtc(from), toUtc(to)))
                 .thenReturn(List.of(item1, item2, item3, item4, item5, item6));
 
         ReportData report = reportService.generateReport(from, to);
@@ -131,9 +156,9 @@ class ReportServiceTest {
         LocalDateTime from = today.atStartOfDay();
         LocalDateTime to = today.atTime(23, 59, 59, 999_999_999);
 
-        when(orderRepository.sumTotalAmountBetween(from, to)).thenReturn(BigDecimal.ZERO);
-        when(orderRepository.countByCreatedAtBetween(from, to)).thenReturn(0L);
-        when(orderItemRepository.findTopSellingItems(from, to)).thenReturn(List.of());
+        when(orderRepository.sumTotalAmountBetween(toUtc(from), toUtc(to))).thenReturn(BigDecimal.ZERO);
+        when(orderRepository.countByCreatedAtBetween(toUtc(from), toUtc(to))).thenReturn(0L);
+        when(orderItemRepository.findTopSellingItems(toUtc(from), toUtc(to))).thenReturn(List.of());
 
         ReportData report = reportService.generateReport(from, to);
 

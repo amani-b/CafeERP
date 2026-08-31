@@ -2,6 +2,7 @@ package com.cafeerp.assistant;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -458,7 +459,7 @@ public class AssistantService {
         if (conversation.getTitle() == null && firstUserMessage != null) {
             conversation.setTitle(AssistantConversation.deriveTitle(firstUserMessage));
         }
-        conversation.setLastActivityAt(LocalDateTime.now());
+        conversation.setLastActivityAt(LocalDateTime.now(ZoneOffset.UTC));
         conversationRepository.save(conversation);
     }
 

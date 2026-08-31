@@ -1,6 +1,7 @@
 package com.cafeerp.assistant;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -55,10 +56,10 @@ public class AssistantConversationArchivalJob {
     @Scheduled(cron = "${assistant.chat.archive-cron:0 0 3 * * *}")
     @Transactional
     public int archiveStaleConversations() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(archiveAfterDays);
+        LocalDateTime cutoff = LocalDateTime.now(ZoneOffset.UTC).minusDays(archiveAfterDays);
         List<AssistantConversation> stale =
                 conversationRepository.findByArchivedAtIsNullAndLastActivityAtBefore(cutoff);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         for (AssistantConversation conversation : stale) {
             conversation.setArchivedAt(now);
             conversationRepository.save(conversation);
@@ -82,7 +83,7 @@ public class AssistantConversationArchivalJob {
     @Scheduled(cron = "${assistant.chat.purge-cron:0 30 3 * * *}")
     @Transactional
     public int purgeExpiredArchivedConversations() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(purgeAfterDays);
+        LocalDateTime cutoff = LocalDateTime.now(ZoneOffset.UTC).minusDays(purgeAfterDays);
         List<AssistantConversation> expired =
                 conversationRepository.findByArchivedAtIsNotNullAndArchivedAtBefore(cutoff);
         for (AssistantConversation conversation : expired) {

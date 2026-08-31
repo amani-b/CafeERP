@@ -40,7 +40,7 @@ public class SecurityConfig {
                         "/build-version").permitAll()
                 .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**",
                         "/admin/assistant/**", "/admin/assistant",
-                        "/assistant/admin/**", "/assistant/admin", "/users/**").hasRole("ADMIN")
+                        "/assistant/admin/**", "/assistant/admin", "/users/**", "/settings/**").hasRole("ADMIN")
                 .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
                 .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN")
