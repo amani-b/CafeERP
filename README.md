@@ -225,3 +225,10 @@ For backup and restore procedures, first-deploy checklist, and incident response
 ## Notes
 
 This project is a basic ERP-style demo for cafe operations and can be extended with payments, reporting, and other features.
+
+## Timestamp & Timezone Contract
+
+- All `LocalDateTime` columns are persisted in **UTC** (`LocalDateTime.now(ZoneOffset.UTC)` at write sites).
+- All displayed timestamps are rendered in the business's configured IANA timezone (12-hour AM/PM), sourced from the admin **Settings** page (`app_setting` table, key `business.timezone`, default `Africa/Addis_Ababa`).
+- Rendering is centralized in `TimeDisplayService` (`timeFmt` in every Thymeleaf template).
+- **Known caveat:** rows written before the UTC-at-source change were stored in server-local time and have **not** been migrated; they will render shifted until a one-off data migration is performed (deferred by decision).

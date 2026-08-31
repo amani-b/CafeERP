@@ -1,6 +1,7 @@
 package com.cafeerp.assistant;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import com.cafeerp.user.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -69,14 +70,14 @@ public class AssistantConversation {
 
     public AssistantConversation(User user) {
         this.user = user;
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = LocalDateTime.now(ZoneOffset.UTC);
         this.lastActivityAt = this.createdAt;
     }
 
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            createdAt = LocalDateTime.now(ZoneOffset.UTC);
         }
         if (lastActivityAt == null) {
             lastActivityAt = createdAt;
@@ -87,7 +88,7 @@ public class AssistantConversation {
     @PreUpdate
     public void preUpdate() {
         if (lastActivityAt == null) {
-            lastActivityAt = LocalDateTime.now();
+            lastActivityAt = LocalDateTime.now(ZoneOffset.UTC);
         }
     }
 

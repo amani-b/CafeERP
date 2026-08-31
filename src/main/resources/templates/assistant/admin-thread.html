@@ -59,7 +59,7 @@
                               th:classappend="${msg.role.name() == 'USER'} ? 'badge-ink' : 'badge-info'"
                               th:text="${msg.role.name() == 'USER'} ? 'User' : 'Assistant'">User</span>
                         <small class="text-xs text-muted num"
-                               th:text="${#temporals.format(msg.createdAt, 'yyyy-MM-dd hh:mm:ss a')}">2026-07-26 12:00:00 PM</small>
+                               th:text="${timeFmt.format(msg.createdAt, 'yyyy-MM-dd h:mm:ss a')}">2026-07-26 12:00:00 PM</small>
                     </div>
 
                     <!-- Message body bubble -->

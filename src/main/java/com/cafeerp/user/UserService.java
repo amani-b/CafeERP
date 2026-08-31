@@ -1,6 +1,7 @@
 package com.cafeerp.user;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -73,7 +74,7 @@ public class UserService {
         user.setMustChangePassword(false);
         userRepository.save(user);
 
-        log.info("Password changed for user '{}' at {}", username, LocalDateTime.now());
+        log.info("Password changed for user '{}' at {}", username, LocalDateTime.now(ZoneOffset.UTC));
     }
 
     // ---------------------------------------------------------------
@@ -144,7 +145,7 @@ public class UserService {
         if (user.isDeleted()) {
             throw new IllegalArgumentException("User is already deactivated");
         }
-        user.setDeletedAt(LocalDateTime.now());
+        user.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         User saved = userRepository.save(user);
         log.info("User deactivated (soft delete): id={}, username={}",
                 saved.getId(), saved.getUsername());

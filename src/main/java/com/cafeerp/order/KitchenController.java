@@ -1,5 +1,7 @@
 package com.cafeerp.order;
 
+import java.time.ZonedDateTime;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,20 +11,29 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import com.cafeerp.common.TimeDisplayService;
+
 @Controller
 @RequestMapping("/kitchen")
 public class KitchenController {
 
     private final OrderService orderService;
+    private final TimeDisplayService timeDisplayService;
 
-    public KitchenController(OrderService orderService) {
+    public KitchenController(OrderService orderService, TimeDisplayService timeDisplayService) {
         this.orderService = orderService;
+        this.timeDisplayService = timeDisplayService;
     }
 
     @GetMapping
     public String queue(Model model) {
         model.addAttribute("orders", orderService.findActiveOrders());
         model.addAttribute("statuses", OrderStatus.values());
+        // Server-anchored clock baseline: the header clock is computed from
+        // this instant (not the device clock) and rendered in the business
+        // timezone, so a misconfigured staff device cannot skew it.
+        model.addAttribute("businessEpochMillis", ZonedDateTime.now().toInstant().toEpochMilli());
+        model.addAttribute("businessZoneId", timeDisplayService.getBusinessZone().getId());
         return "kitchen/queue";
     }
 
