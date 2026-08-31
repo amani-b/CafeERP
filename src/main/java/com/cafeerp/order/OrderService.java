@@ -2,6 +2,7 @@ package com.cafeerp.order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -78,7 +79,7 @@ public class OrderService {
     @Transactional
     public Order createOrder(Map<Long, Integer> quantities) {
         Order order = new Order();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         quantities.forEach((menuItemId, quantity) -> {
             if (quantity == null || quantity <= 0) {

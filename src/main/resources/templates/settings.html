@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(title='Settings')}"></head>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='settings')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='settings')}"></div>
+
+<main class="app-main uk-container max-w-3xl mx-auto px-4 py-8">
+    <section class="page-header card-pad mb-8">
+        <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Settings</h1>
+        <p class="subtitle text-sm mt-1">Business-wide configuration. Changes apply immediately for all users.</p>
+    </section>
+
+    <div th:if="${successMessage}" class="uk-alert-success" uk-alert th:text="${successMessage}">Saved.</div>
+    <div th:if="${errorMessage}" class="uk-alert-danger" uk-alert th:text="${errorMessage}">Error.</div>
+
+    <section class="card card-pad">
+        <h2 class="text-lg font-bold mb-1">Business Timezone</h2>
+        <p class="text-sm text-muted mb-4">
+            All timestamps across the ERP — orders, kitchen tickets, reports, and assistant logs — are
+            displayed in this timezone using a 12-hour AM/PM clock. Internal times are stored in UTC.
+            Current: <strong class="num" th:text="${currentZoneLabel}">Africa/Addis_Ababa</strong>
+        </p>
+        <form th:action="@{/settings/timezone}" method="post" class="flex flex-col sm:flex-row items-start sm:items-end gap-3">
+            <div class="flex-1 w-full">
+                <label class="field-label" for="timezone">IANA Timezone</label>
+                <input id="timezone" list="timezone-options" name="timezone" class="uk-input"
+                       th:value="${currentTimezone}" required
+                       placeholder="Africa/Addis_Ababa" autocomplete="off">
+                <datalist id="timezone-options">
+                    <option th:each="tz : ${availableTimezones}" th:value="${tz}" th:text="${tz}">Africa/Addis_Ababa</option>
+                </datalist>
+            </div>
+            <button type="submit" class="btn btn-primary px-6 text-sm"><span class="btn-label">Save</span></button>
+        </form>
+    </section>
+</main>
+
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
+</body>
+</html>

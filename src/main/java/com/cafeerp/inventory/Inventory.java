@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PreUpdate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 public class Inventory {
@@ -43,7 +44,7 @@ public class Inventory {
 
     @PreUpdate
     public void preUpdate() {
-        this.lastUpdatedAt = LocalDateTime.now();
+        this.lastUpdatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     public Long getId() {
@@ -79,7 +80,7 @@ public class Inventory {
      */
     public void setStockQuantity(int stockQuantity) {
         this.stockQuantity = stockQuantity;
-        this.lastUpdatedAt = LocalDateTime.now();
+        this.lastUpdatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     public int getLowStockThreshold() {

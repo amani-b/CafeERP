@@ -2,6 +2,7 @@ package com.cafeerp.order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +50,8 @@ public class Order {
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            // Persisted in UTC (display converts to the business timezone).
+            createdAt = LocalDateTime.now(ZoneOffset.UTC);
         }
         normalizeTotals();
     }

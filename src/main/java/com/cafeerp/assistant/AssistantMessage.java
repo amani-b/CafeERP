@@ -1,6 +1,7 @@
 package com.cafeerp.assistant;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import com.cafeerp.user.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -59,7 +60,8 @@ public class AssistantMessage {
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
-            createdAt = LocalDateTime.now();
+            // Persisted in UTC (display converts to the business timezone).
+            createdAt = LocalDateTime.now(ZoneOffset.UTC);
         }
     }
 

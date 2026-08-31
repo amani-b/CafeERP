@@ -5,6 +5,8 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.cafeerp.order.ItemSalesProjection;
 import com.cafeerp.order.OrderItemRepository;
 import com.cafeerp.order.OrderRepository;
+import com.cafeerp.settings.SettingsService;
 
 @Service
 public class ReportService {
@@ -26,11 +29,14 @@ public class ReportService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final SettingsService settingsService;
 
     public ReportService(OrderRepository orderRepository,
-                         OrderItemRepository orderItemRepository) {
+                         OrderItemRepository orderItemRepository,
+                         SettingsService settingsService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -40,7 +46,10 @@ public class ReportService {
      * @return a DateRange with resolved from/to
      */
     public DateRange resolveDateRange(String preset) {
-        LocalDate today = LocalDate.now();
+        // "Today"/"this week" must mean today IN THE BUSINESS'S timezone,
+        // not the server's — orders are stored in UTC, so the business-local
+        // day boundaries are converted to UTC before querying (generateReport).
+        LocalDate today = LocalDate.now(settingsService.getTimeZone());
         LocalDateTime from;
         LocalDateTime to;
 
@@ -93,14 +102,26 @@ public class ReportService {
     public ReportData generateReport(LocalDateTime from, LocalDateTime to) {
         log.debug("Generating report from {} to {}", from, to);
 
-        BigDecimal totalSales = orderRepository.sumTotalAmountBetween(from, to);
-        long orderCount = orderRepository.countByCreatedAtBetween(from, to);
-        List<ItemSalesProjection> topItems = orderItemRepository.findTopSellingItems(from, to);
+        // Range boundaries arrive as business-local wall time; orders are
+        // stored in UTC, so convert before querying.
+        ZoneId zone = settingsService.getTimeZone();
+        LocalDateTime fromUtc = toUtc(from, zone);
+        LocalDateTime toUtc = toUtc(to, zone);
+
+        BigDecimal totalSales = orderRepository.sumTotalAmountBetween(fromUtc, toUtc);
+        long orderCount = orderRepository.countByCreatedAtBetween(fromUtc, toUtc);
+        List<ItemSalesProjection> topItems = orderItemRepository.findTopSellingItems(fromUtc, toUtc);
 
         // Limit to top 5
         List<ItemSalesProjection> top5 = topItems.size() > 5 ? topItems.subList(0, 5) : topItems;
 
         return new ReportData(totalSales, orderCount, top5, from, to);
+    }
+
+    private static LocalDateTime toUtc(LocalDateTime businessLocal, ZoneId zone) {
+        return businessLocal.atZone(zone)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
     }
 
     /**

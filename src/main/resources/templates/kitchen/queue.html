@@ -15,7 +15,8 @@
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Kitchen Queue</h1>
                 <p class="subtitle text-sm mt-1">Live order ticker — tap a status to advance an order.</p>
             </div>
-            <span id="kitchen-clock" class="badge num" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);font-size:.85rem;padding:.45rem .9rem;"></span>
+            <span id="kitchen-clock" class="badge num" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);font-size:.85rem;padding:.45rem .9rem;"
+                  th:attr="data-epoch-ms=${businessEpochMillis}, data-zone-id=${businessZoneId}"></span>
         </div>
     </section>
 
@@ -42,7 +43,7 @@
                           th:text="${order.status}">PENDING</span>
                 </div>
                 <small class="text-sm font-semibold text-muted num whitespace-nowrap"
-                       th:text="${#temporals.format(order.createdAt, 'hh:mm a')}">08:00</small>
+                       th:text="${timeFmt.formatTime(order.createdAt)}">11:00 AM</small>
             </div>
 
             <div class="ticket-tear"></div>
@@ -106,11 +107,20 @@
 <script th:inline="none">
     (function () {
         // ---- Live clock (cosmetic only) ----
+        // Anchored to the SERVER's epoch at render time and rendered in the
+        // business timezone — immune to a misconfigured device clock or
+        // device timezone. Elapsed time is added on top of the baseline.
         var clock = document.getElementById('kitchen-clock');
         if (clock) {
+            var epochMs = parseInt(clock.getAttribute('data-epoch-ms'), 10);
+            var zoneId = clock.getAttribute('data-zone-id');
+            var pageLoadMs = Date.now();
+            var formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: zoneId, hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+            });
             function tick() {
-                var now = new Date();
-                clock.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                var serverNow = new Date(epochMs + (Date.now() - pageLoadMs));
+                clock.textContent = formatter.format(serverNow);
             }
             tick();
             setInterval(tick, 1000);
