@@ -908,6 +908,8 @@
     .card { box-shadow: none; border: 1px solid #000; }
     .page-header { background: #fff !important; color: #000 !important; border: 1px solid #000; }
     .page-header .eyebrow, .page-header .subtitle { color: #000 !important; }
+    /* Receipt: drop the on-screen dead-centering so print starts at the top */
+    .receipt-container { min-height: auto !important; display: block !important; }
   }
 }
 
