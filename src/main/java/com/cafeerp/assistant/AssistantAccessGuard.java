@@ -84,7 +84,7 @@ public class AssistantAccessGuard {
      * @return {@link Decision#allow()} or a friendly {@link Decision#deny}
      */
     public Decision check(Role role, String userMessage) {
-        if (role == Role.ADMIN || userMessage == null || userMessage.isBlank()) {
+        if (role == Role.ADMIN || role == Role.SUPER_ADMIN || userMessage == null || userMessage.isBlank()) {
             return Decision.allow();
         }
         boolean sensitive = matchesAny(FINANCE_PATTERNS, userMessage)

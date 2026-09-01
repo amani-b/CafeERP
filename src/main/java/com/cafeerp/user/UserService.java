@@ -3,6 +3,7 @@ package com.cafeerp.user;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,23 +106,48 @@ public class UserService {
 
     @Transactional
     public User createUser(User user) {
+        return createUser(user, user.getPermissions());
+    }
+
+    /**
+     * Creates a user, persisting the granted granular permissions. Permissions
+     * only apply to ADMIN-tier accounts — STAFF/KITCHEN grants are cleared.
+     */
+    @Transactional
+    public User createUser(User user, Set<Permission> permissions) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPermissions(effectivePermissions(user.getRole(), permissions));
         User saved = userRepository.save(user);
-        log.info("User created: id={}, username={}, role={}",
-                saved.getId(), saved.getUsername(), saved.getRole());
+        log.info("User created: id={}, username={}, role={}, permissions={}",
+                saved.getId(), saved.getUsername(), saved.getRole(), saved.getPermissions());
         return saved;
     }
 
     @Transactional
     public User updateUser(User user) {
+        return updateUser(user, user.getPermissions());
+    }
+
+    /** Updates a user, replacing the granted granular permissions. */
+    @Transactional
+    public User updateUser(User user, Set<Permission> permissions) {
         User existing = findById(user.getId());
         existing.setUsername(user.getUsername());
         existing.setRole(user.getRole());
         existing.setMustChangePassword(user.isMustChangePassword());
+        existing.setPermissions(effectivePermissions(user.getRole(), permissions));
         User saved = userRepository.save(existing);
-        log.info("User updated: id={}, username={}, role={}",
-                saved.getId(), saved.getUsername(), saved.getRole());
+        log.info("User updated: id={}, username={}, role={}, permissions={}",
+                saved.getId(), saved.getUsername(), saved.getRole(), saved.getPermissions());
         return saved;
+    }
+
+    /** STAFF/KITCHEN carry no granular permissions; only ADMIN does. */
+    private static Set<Permission> effectivePermissions(Role role, Set<Permission> permissions) {
+        if (role != Role.ADMIN) {
+            return Set.of();
+        }
+        return permissions == null ? Set.of() : Set.copyOf(permissions);
     }
 
     // ---------------------------------------------------------------

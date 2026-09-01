@@ -32,7 +32,7 @@ public class SettingsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public String show(Model model) {
         ZoneId current = settingsService.getTimeZone();
         model.addAttribute("currentTimezone", current.getId());
@@ -42,7 +42,7 @@ public class SettingsController {
     }
 
     @PostMapping("/timezone")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public String updateTimezone(@RequestParam String timezone,
                                  RedirectAttributes redirectAttributes) {
         try {

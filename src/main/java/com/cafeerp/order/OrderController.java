@@ -3,6 +3,7 @@ package com.cafeerp.order;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +15,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.cafeerp.menu.MenuService;
 
+// Phase 3: admin-tier users need the ORDER_KITCHEN permission; the STAFF role
+// keeps its existing access (URL rules still gate the role tiers), and
+// SUPER_ADMIN always passes.
 @Controller
+@PreAuthorize("hasAnyRole('STAFF', 'KITCHEN') or @permissions.has('ORDER_KITCHEN')")
 @RequestMapping("/orders")
 public class OrderController {
 

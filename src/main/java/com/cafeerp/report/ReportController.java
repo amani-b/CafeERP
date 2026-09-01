@@ -4,6 +4,7 @@ import java.time.LocalDate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +14,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import com.cafeerp.report.ReportService.DateRange;
 import com.cafeerp.report.ReportService.ReportData;
 
+// Phase 3: requires the REPORT permission for admin-tier users; SUPER_ADMIN
+// always passes.
 @Controller
+@PreAuthorize("@permissions.has('REPORT')")
 @RequestMapping("/reports")
 public class ReportController {
 

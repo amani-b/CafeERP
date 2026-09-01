@@ -53,6 +53,7 @@
                 <tr th:each="user : ${users}" th:attr="data-username=${user.username}">
                     <td class="font-semibold" th:text="${user.username}">admin</td>
                     <td>
+                        <span class="badge badge-ink" th:if="${user.role.name() == 'SUPER_ADMIN'}">Super Admin</span>
                         <span class="badge badge-ink" th:if="${user.role.name() == 'ADMIN'}">Admin</span>
                         <span class="badge badge-neutral" th:if="${user.role.name() == 'STAFF'}">Staff</span>
                         <span class="badge badge-info" th:if="${user.role.name() == 'KITCHEN'}">Kitchen</span>

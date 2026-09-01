@@ -34,7 +34,7 @@ class UserControllerTest {
     //  404 on nonexistent user edit
     // -------------------------------------------------------
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(username = "root", roles = "SUPER_ADMIN")
     void editForm_withNonexistentId_shouldReturn404() throws Exception {
         when(userService.findById(999L))
                 .thenThrow(new IllegalArgumentException("User not found"));
@@ -61,14 +61,14 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(username = "root", roles = "SUPER_ADMIN")
     void usersList_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(get("/users"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(username = "root", roles = "SUPER_ADMIN")
     void usersNew_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(get("/users/new"))
                 .andExpect(status().isOk());
