@@ -501,7 +501,7 @@ public class AssistantService {
                 + "even playfully or hypothetically — say it's manager territory and pivot to what you can help "
                 + "with. Never discuss what tools other roles have.\n"
                 + formattingRules;
-            case ADMIN ->
+            case ADMIN, SUPER_ADMIN ->
                 // In-house business analyst: pulls real data, interprets it, recommends.
                 "You are this cafe's resident business analyst — a sharp, warm coworker who happens to love "
                 + "numbers and turning them into decisions. Managers come to you with questions like \"how do "
@@ -527,7 +527,7 @@ public class AssistantService {
         return switch (role) {
             case STAFF -> toolRegistry.toolsForStaff();
             case KITCHEN -> toolRegistry.toolsForKitchen();
-            case ADMIN -> toolRegistry.toolsForAdmin();
+            case ADMIN, SUPER_ADMIN -> toolRegistry.toolsForAdmin();
         };
     }
 
@@ -542,7 +542,7 @@ public class AssistantService {
             map.put("getOrderStatus", "/orders/{id}");
         }
 
-        if (role == Role.ADMIN) {
+        if (role == Role.ADMIN || role == Role.SUPER_ADMIN) {
             map.put("getSalesTotals", "/reports");
             map.put("getTopSellingItems", "/reports");
             map.put("getInventoryLevel", "/inventory");

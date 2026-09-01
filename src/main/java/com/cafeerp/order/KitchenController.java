@@ -2,6 +2,7 @@ package com.cafeerp.order;
 
 import java.time.ZonedDateTime;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +14,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.cafeerp.common.TimeDisplayService;
 
+// Phase 3: admin-tier users need the ORDER_KITCHEN permission for the kitchen
+// queue; the KITCHEN role keeps its existing access (URL rules still gate the
+// role tiers), and SUPER_ADMIN always passes.
 @Controller
+@PreAuthorize("hasAnyRole('KITCHEN') or @permissions.has('ORDER_KITCHEN')")
 @RequestMapping("/kitchen")
 public class KitchenController {
 

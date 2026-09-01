@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,6 +14,22 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /**
+     * Method-security denials ({@code @PreAuthorize}, including the Phase 3
+     * granular-permission checks) must surface as 403 — not fall through to the
+     * generic 500 handler.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public String handleAccessDenied(AccessDeniedException ex, Model model, HttpServletRequest request) {
+        log.warn("Access denied: {} {} — {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        model.addAttribute("status", 403);
+        model.addAttribute("error", "Forbidden");
+        model.addAttribute("message", "You do not have access to this area.");
+        model.addAttribute("path", request.getRequestURI());
+        return "error/403";
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

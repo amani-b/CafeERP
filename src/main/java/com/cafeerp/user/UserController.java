@@ -13,22 +13,29 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.List;
+import java.util.Set;
+
 import jakarta.validation.Valid;
 
 @Controller
 @RequestMapping("/users")
-// NOTE: /users/** is already ADMIN-only in SecurityConfig's filter chain (the
-// primary server-side enforcement); these @PreAuthorize annotations are the
-// second layer, evaluated on the handler itself.
-@PreAuthorize("hasRole('ADMIN')")
+// NOTE: /users/** is already admin-tier-only in SecurityConfig's filter chain
+// (the primary server-side enforcement); these @PreAuthorize annotations are
+// the second layer, evaluated on the handler itself. Phase 3: an ADMIN-tier
+// user additionally needs the USER_MANAGEMENT permission (SUPER_ADMIN always
+// passes — see PermissionService).
+@PreAuthorize("@permissions.has('USER_MANAGEMENT')")
 public class UserController {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
 
     private final UserService userService;
+    private final PermissionService permissionService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, PermissionService permissionService) {
         this.userService = userService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -43,40 +50,57 @@ public class UserController {
     @GetMapping("/new")
     public String createForm(Model model) {
         model.addAttribute("user", new User());
+        addPermissionModelAttributes(model, null);
         return "users/create";
     }
 
     @PostMapping
-    public String create(@Valid @ModelAttribute User user, BindingResult bindingResult) {
+    public String create(@Valid @ModelAttribute User user, BindingResult bindingResult,
+                         @RequestParam(value = "permissions", required = false) List<String> permissions,
+                         Authentication authentication, Model model) {
         if (bindingResult.hasErrors()) {
+            addPermissionModelAttributes(model, null);
             return "users/create";
         }
 
         if (user.getPassword() == null || user.getPassword().length() < MIN_PASSWORD_LENGTH) {
             bindingResult.rejectValue("password", "error.password",
                     "Password must be at least " + MIN_PASSWORD_LENGTH + " characters long.");
+            addPermissionModelAttributes(model, null);
             return "users/create";
         }
 
         if (userService.usernameExists(user.getUsername())) {
             bindingResult.rejectValue("username", "error.username", "Username already exists.");
+            addPermissionModelAttributes(model, null);
             return "users/create";
         }
 
-        userService.createUser(user);
+        Set<Permission> granted = validateGrant(permissions, user.getRole(), bindingResult, authentication);
+        if (bindingResult.hasErrors()) {
+            addPermissionModelAttributes(model, null);
+            return "users/create";
+        }
+
+        userService.createUser(user, granted);
         return "redirect:/users";
     }
 
     @GetMapping("/edit/{id}")
     public String editForm(@PathVariable Long id, Model model) {
-        model.addAttribute("user", userService.findById(id));
+        User user = userService.findById(id);
+        model.addAttribute("user", user);
+        addPermissionModelAttributes(model, user);
         return "users/edit";
     }
 
     @PostMapping("/update/{id}")
-    public String update(@PathVariable Long id, @Valid @ModelAttribute User user, BindingResult bindingResult) {
+    public String update(@PathVariable Long id, @Valid @ModelAttribute User user, BindingResult bindingResult,
+                         @RequestParam(value = "permissions", required = false) List<String> permissions,
+                         Authentication authentication, Model model) {
         if (bindingResult.hasErrors()) {
             user.setId(id);
+            addPermissionModelAttributes(model, userService.findById(id));
             return "users/edit";
         }
 
@@ -85,12 +109,62 @@ public class UserController {
                 && userService.usernameExists(user.getUsername())) {
             bindingResult.rejectValue("username", "error.username", "Username already exists.");
             user.setId(id);
+            addPermissionModelAttributes(model, existing);
             return "users/edit";
         }
 
         user.setId(id);
-        userService.updateUser(user);
+        Set<Permission> granted = validateGrant(permissions, user.getRole(), bindingResult, authentication);
+        if (bindingResult.hasErrors()) {
+            addPermissionModelAttributes(model, existing);
+            return "users/edit";
+        }
+
+        userService.updateUser(user, granted);
         return "redirect:/users";
+    }
+
+    // ---------------------------------------------------------------
+    //  Granular permission grants (Phase 3)
+    // ---------------------------------------------------------------
+
+    /**
+     * Validates the submitted permission checkboxes against the acting admin's
+     * own scope (fail closed): a scoped admin can never grant more than they
+     * hold, and only the super admin can grant the AI capabilities. Returns
+     * the validated set, or registers a binding error and returns null.
+     */
+    private Set<Permission> validateGrant(List<String> permissions, Role targetRole,
+                                          BindingResult bindingResult, Authentication authentication) {
+        try {
+            permissionService.assertCanGrant(authentication, permissions, targetRole);
+        } catch (IllegalArgumentException e) {
+            bindingResult.reject("error.permissions", e.getMessage());
+            return null;
+        }
+        if (permissions == null) {
+            return Set.of();
+        }
+        Set<Permission> granted = new java.util.HashSet<>();
+        for (String name : permissions) {
+            try {
+                granted.add(Permission.valueOf(name));
+            } catch (IllegalArgumentException ignored) {
+                // unknown names already rejected by assertCanGrant
+            }
+        }
+        return granted;
+    }
+
+    /** Checkbox list (limited to what the actor may grant) + current selections. */
+    private void addPermissionModelAttributes(Model model, User target) {
+        Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        model.addAttribute("grantablePermissions", permissionService.grantablePermissions(auth));
+        model.addAttribute("isSuperAdmin", auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a.getAuthority())));
+        model.addAttribute("selectedPermissions",
+                target == null ? java.util.Set.of() : target.getPermissions());
     }
 
     // ---------------------------------------------------------------

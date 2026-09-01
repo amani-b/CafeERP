@@ -44,7 +44,7 @@ class InventoryControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_INVENTORY"})
     void inventoryList_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(get("/inventory"))
                 .andExpect(status().isOk());
@@ -62,7 +62,7 @@ class InventoryControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_INVENTORY"})
     void inventoryUpdate_whenAdmin_shouldRedirect() throws Exception {
         mockMvc.perform(post("/inventory/update/{id}", 1L)
                         .with(csrf())

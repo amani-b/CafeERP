@@ -28,7 +28,21 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                authoritiesFor(user)
         );
+    }
+
+    /**
+     * Granted authorities = role + one PERM_* authority per persisted
+     * permission. SUPER_ADMIN needs no PERM_* rows — PermissionService grants
+     * it everything implicitly.
+     */
+    private static List<SimpleGrantedAuthority> authoritiesFor(User user) {
+        java.util.List<SimpleGrantedAuthority> authorities = new java.util.ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        for (Permission permission : user.getPermissions()) {
+            authorities.add(new SimpleGrantedAuthority(permission.authority()));
+        }
+        return authorities;
     }
 }

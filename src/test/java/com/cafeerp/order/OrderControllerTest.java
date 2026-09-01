@@ -54,7 +54,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_ORDER_KITCHEN"})
     void kitchenQueue_whenAdmin_shouldSucceed() throws Exception {
         when(orderService.findActiveOrders()).thenReturn(List.of());
         mockMvc.perform(get("/kitchen"))
@@ -82,7 +82,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_ORDER_KITCHEN"})
     void receipt_whenAdmin_shouldSucceed() throws Exception {
         Order order = new Order();
         order.setId(1L);
@@ -111,7 +111,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_ORDER_KITCHEN"})
     void updateStatus_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(post("/orders/{id}/status", 1L)
                         .param("status", "PREPARING")
