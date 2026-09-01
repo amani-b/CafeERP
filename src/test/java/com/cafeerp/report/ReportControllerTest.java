@@ -54,7 +54,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_REPORT"})
     void reportsPage_whenAdmin_shouldSucceed() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         when(reportService.resolveDateRange(null, null, null))

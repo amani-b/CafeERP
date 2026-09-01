@@ -12,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.cafeerp.user.CustomUserDetailsService;
+import com.cafeerp.user.PermissionService;
 import com.cafeerp.user.UserRepository;
 
 @Configuration
@@ -38,12 +39,17 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health",
                         "/build-version").permitAll()
+                // NOTE: SUPER_ADMIN is the root tier; ADMIN is the scoped tier.
+                // Admin-tier URL access is additionally narrowed per-module by
+                // @permissions.has(...) checks on the controllers (Phase 3).
                 .requestMatchers("/categories/**", "/menu/**", "/inventory/**", "/reports/**",
                         "/admin/assistant/**", "/admin/assistant",
-                        "/assistant/admin/**", "/assistant/admin", "/users/**", "/settings/**").hasRole("ADMIN")
-                .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN")
-                .requestMatchers(HttpMethod.POST, "/orders/*/status").hasAnyRole("STAFF", "ADMIN", "KITCHEN")
-                .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN")
+                        "/assistant/admin/**", "/assistant/admin", "/users/**", "/settings/**")
+                .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                .requestMatchers("/kitchen/**").hasAnyRole("KITCHEN", "ADMIN", "SUPER_ADMIN")
+                .requestMatchers(HttpMethod.POST, "/orders/*/status")
+                .hasAnyRole("STAFF", "ADMIN", "SUPER_ADMIN", "KITCHEN")
+                .requestMatchers(HttpMethod.GET, "/orders/*").hasAnyRole("STAFF", "ADMIN", "SUPER_ADMIN")
                 .requestMatchers("/orders/**", "/", "/account/**").authenticated()
                 .anyRequest().authenticated()
             )
@@ -72,5 +78,16 @@ public class SecurityConfig {
     @Bean
     public PasswordChangeFilter passwordChangeFilter() {
         return new PasswordChangeFilter(userRepository);
+    }
+
+    /**
+     * Exposed as the {@code @permissions} bean used by
+     * {@code @PreAuthorize("@permissions.has('…')")} expressions. Declared here
+     * (rather than component scanning only) so test slices that import
+     * {@link SecurityConfig} also get it.
+     */
+    @Bean
+    public PermissionService permissions() {
+        return new PermissionService();
     }
 }

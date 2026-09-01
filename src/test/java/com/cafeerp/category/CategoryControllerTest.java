@@ -36,7 +36,7 @@ class CategoryControllerTest {
     //  Group 3: 404 on nonexistent category edit
     // -------------------------------------------------------
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_CATEGORY"})
     void editForm_withNonexistentId_shouldReturn404() throws Exception {
         when(categoryService.findById(999L))
                 .thenThrow(new IllegalArgumentException("Category not found"));
@@ -56,14 +56,14 @@ class CategoryControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_CATEGORY"})
     void categoriesList_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(get("/categories"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = {"ROLE_ADMIN", "PERM_CATEGORY"})
     void categoriesNew_whenAdmin_shouldSucceed() throws Exception {
         mockMvc.perform(get("/categories/new"))
                 .andExpect(status().isOk());

@@ -189,7 +189,7 @@ public class AssistantToolRegistry {
         List<Map<String, Object>> tools = switch (role) {
             case STAFF -> toolsForStaff();
             case KITCHEN -> toolsForKitchen();
-            case ADMIN -> toolsForAdmin();
+            case ADMIN, SUPER_ADMIN -> toolsForAdmin();
         };
         return tools.stream()
                 .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))

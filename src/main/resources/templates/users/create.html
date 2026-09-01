@@ -50,6 +50,38 @@
                 </label>
             </div>
 
+            <!-- Phase 3: granular admin permissions. Nothing granted by default
+                 — explicit opt-in per module. Server-side grant validation in
+                 UserController (scoped admins can never grant beyond what they
+                 hold; only super admin can grant the AI capabilities). -->
+            <div class="mb-6" id="permissions-block" th:if="${not #lists.isEmpty(grantablePermissions)}">
+                <span class="field-label">Module access <span class="text-xs font-normal" style="color:var(--muted);">(Admin role only)</span></span>
+                <p class="text-sm mt-1 mb-3" style="color:var(--muted);">
+                    Choose exactly which parts of the ERP this admin can access. Nothing is granted by default.
+                </p>
+                <div class="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer" th:each="p : ${grantablePermissions}">
+                        <input type="checkbox" class="uk-checkbox" name="permissions" th:value="${p.name()}"
+                               th:checked="${selectedPermissions.contains(p)}">
+                        <span class="text-sm" th:text="${p.label}">Inventory</span>
+                    </label>
+                </div>
+                <div class="field-error mt-2" th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}">Permission error</div>
+            </div>
+
+            <script>
+                /* Show the permission grid only for the Admin role (no animation,
+                   so prefers-reduced-motion is irrelevant). */
+                (function () {
+                    var role = document.getElementById('role');
+                    var block = document.getElementById('permissions-block');
+                    if (!role || !block) return;
+                    function sync() { block.style.display = role.value === 'ADMIN' ? '' : 'none'; }
+                    role.addEventListener('change', sync);
+                    sync();
+                })();
+            </script>
+
             <div class="flex flex-wrap items-center gap-3">
                 <button type="submit" class="btn btn-primary px-5 text-sm"><span class="btn-label">Save</span></button>
                 <a class="btn btn-secondary px-5 text-sm" th:href="@{/users}"><span class="btn-label">Cancel</span></a>
