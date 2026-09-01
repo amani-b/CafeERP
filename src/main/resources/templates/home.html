@@ -13,7 +13,7 @@
             <div>
                 <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
                 <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Dashboard</h1>
-                <p class="subtitle text-sm mt-1" sec:authorize="hasRole('ADMIN')">A quick snapshot of your cafe's operations.</p>
+                <p class="subtitle text-sm mt-1" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')">A quick snapshot of your cafe's operations.</p>
                 <p class="subtitle text-sm mt-1" sec:authorize="hasRole('KITCHEN')">Here's what the kitchen queue looks like right now.</p>
                 <p class="subtitle text-sm mt-1" sec:authorize="hasRole('STAFF')">Here's what's happening on your shift.</p>
             </div>
@@ -27,7 +27,7 @@
     </section>
 
     <!-- Inventory status (ADMIN only) -->
-    <section sec:authorize="hasRole('ADMIN')" class="mb-8">
+    <section sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" class="mb-8">
         <!-- Low stock alert -->
         <div th:if="${lowStockCount > 0}" class="card card-pad" style="border-left:4px solid var(--warn);">
             <div class="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -93,7 +93,7 @@
         <h3 class="section-label mb-4">At a glance</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <!-- Stat: Inventory -->
-            <div class="card card--hover p-5" sec:authorize="hasRole('ADMIN')">
+            <div class="card card--hover p-5" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')">
                 <div class="flex items-center gap-3">
                     <div class="icon-tile">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -138,7 +138,7 @@
     <section>
         <h3 class="section-label mb-4">Quick actions</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <a th:href="@{/orders}" class="tile" sec:authorize="hasAnyRole('STAFF','ADMIN')">
+            <a th:href="@{/orders}" class="tile" sec:authorize="hasAnyRole('STAFF','SUPER_ADMIN') or hasAuthority('PERM_ORDER_KITCHEN')">
                 <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                 </div>
@@ -147,7 +147,7 @@
                     <p class="text-xs text-muted">Create an order</p>
                 </div>
             </a>
-            <a th:href="@{/kitchen}" class="tile" sec:authorize="hasAnyRole('KITCHEN','ADMIN')">
+            <a th:href="@{/kitchen}" class="tile" sec:authorize="hasAnyRole('KITCHEN','SUPER_ADMIN') or hasAuthority('PERM_ORDER_KITCHEN')">
                 <div class="icon-tile icon-tile--info">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
@@ -156,7 +156,7 @@
                     <p class="text-xs text-muted">View active orders</p>
                 </div>
             </a>
-            <a th:href="@{/menu}" class="tile" sec:authorize="hasRole('ADMIN')">
+            <a th:href="@{/menu}" class="tile" sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_MENU')">
                 <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                 </div>
@@ -165,7 +165,7 @@
                     <p class="text-xs text-muted">Manage menu items</p>
                 </div>
             </a>
-            <a th:href="@{/inventory}" class="tile" sec:authorize="hasRole('ADMIN')">
+            <a th:href="@{/inventory}" class="tile" sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_INVENTORY')">
                 <div class="icon-tile">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                 </div>
