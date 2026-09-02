@@ -212,6 +212,25 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.Order(7)
+    void pendingActionsEndpointListsOwnPendingActionsOnly() throws Exception {
+        MockHttpSession session = login(AGENTIC, "password123");
+        AssistantActionLog action = pendingAction(user(AGENTIC), "updateInventory",
+                "{\"itemName\":\"" + trackedItemName + "\",\"stockQuantity\":2}");
+
+        mockMvc.perform(get("/assistant/conversations/1/pending-actions").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + action.getId() + ")]").exists())
+                .andExpect(jsonPath("$[?(@.tool == 'updateInventory')]").exists());
+
+        // Not visible to another user.
+        MockHttpSession other = login(NON_AGENTIC, "password123");
+        mockMvc.perform(get("/assistant/conversations/1/pending-actions").session(other))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + action.getId() + ")]").doesNotExist());
+    }
+
+    @Test
+    @org.junit.jupiter.api.Order(8)
     void autonomyDefaultsToAlwaysConfirmAndCanBeChangedPerSession() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
 
@@ -232,7 +251,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(8)
+    @org.junit.jupiter.api.Order(9)
     void loginAndLogoutAreRecorded() throws Exception {
         MockHttpSession session = login(NON_AGENTIC, "password123");
 
@@ -251,7 +270,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(9)
+    @org.junit.jupiter.api.Order(10)
     void adminActionLogPageRenders() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
         mockMvc.perform(get("/admin/assistant/actions").session(session))

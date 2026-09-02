@@ -202,6 +202,21 @@ public class AssistantController {
         return ResponseEntity.ok(assistantService.getConversationMessages(user, id));
     }
 
+    /**
+     * GET /assistant/conversations/{id}/pending-actions — AI-proposed actions
+     * awaiting confirmation for this user, so the confirmation cards survive
+     * thread reloads/navigation (the cards are NOT part of the persisted
+     * message history and would otherwise vanish on every re-render).
+     */
+    @GetMapping("/conversations/{id}/pending-actions")
+    public ResponseEntity<List<AssistantReply.PendingActionView>> pendingActions(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+
+        User user = requireUser(userDetails);
+        return ResponseEntity.ok(assistantService.getPendingActions(user, id));
+    }
+
     // ---------------------------------------------------------------
     //  Phase 4 — agentic autonomy setting + action confirm/cancel
     // ---------------------------------------------------------------

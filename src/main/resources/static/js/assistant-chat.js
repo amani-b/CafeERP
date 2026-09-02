@@ -258,6 +258,12 @@
                     return;
                 }
                 renderThread(messages);
+                // Pending AI actions are NOT part of the persisted message
+                // history, so the confirmation cards must be (re-)rendered
+                // from the server after every thread render — otherwise a
+                // reload (including the one right after proposing an action)
+                // wipes the card before the user can press Confirm/Cancel.
+                renderPendingActionsForThread();
             })
             .catch(function () {
                 if (!sendInFlight) showError('Could not load this conversation.');
@@ -359,6 +365,11 @@
     // parameters, with Confirm / Cancel buttons wired to the audit-backed
     // endpoints. Nothing executes until Confirm is pressed.
     function renderPendingActionCard(action) {
+        // Idempotent: a card for this action may already be on screen (it is
+        // re-rendered from the server after every thread reload).
+        if (messagesContainer.querySelector('[data-action-id="' + action.id + '"]')) {
+            return;
+        }
         var card = document.createElement('div');
         card.className = 'assistant-action-card';
         card.setAttribute('data-testid', 'assistant-action-card');
@@ -414,6 +425,17 @@
 
         messagesContainer.appendChild(card);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    /** Fetch and render this thread's pending actions (confirmation cards). */
+    function renderPendingActionsForThread() {
+        if (!currentConversationId) return;
+        fetch('/assistant/conversations/' + currentConversationId + '/pending-actions')
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (actions) {
+                (actions || []).forEach(renderPendingActionCard);
+            })
+            .catch(function () { /* non-fatal: cards also render from the reply */ });
     }
 
     function resolvePendingAction(actionId, verb, card) {
