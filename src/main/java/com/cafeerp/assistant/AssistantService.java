@@ -451,31 +451,6 @@ public class AssistantService {
 
             // Execute each tool call — with validation against allowed tool names
             boolean hadValidCall = false;
-
-            // Ordering guard: if the model batched SEVERAL write calls into a
-            // single round, we cannot know the user's intended order for sure.
-            // Reject the batch and instruct it to re-emit one call per round,
-            // following the user's stated task order (first task first).
-            long writeCallsInRound = toolCalls.stream()
-                    .map(tc -> (Map<String, Object>) tc.get("function"))
-                    .filter(f -> f != null && toolRegistry.isWriteTool((String) f.get("name")))
-                    .count();
-            if (writeCallsInRound > 1) {
-                log.info("Provider {} batched {} write tool calls — rejecting for ordered re-emission",
-                        provider.name(), writeCallsInRound);
-                for (Map<String, Object> tc : toolCalls) {
-                    Map<String, Object> function = (Map<String, Object>) tc.get("function");
-                    Map<String, Object> toolMessage = new HashMap<>();
-                    toolMessage.put("role", "tool");
-                    toolMessage.put("tool_call_id", tc.get("id"));
-                    toolMessage.put("content", "Batched calls rejected. Handle the user's tasks ONE at a time, "
-                            + "in EXACTLY the order they listed them (first task first). Re-issue only the "
-                            + "FIRST not-yet-handled task's tool call now and wait for its result.");
-                    msgs.add(toolMessage);
-                }
-                continue;
-            }
-
             for (Map<String, Object> tc : toolCalls) {
                 String id = (String) tc.get("id");
                 Map<String, Object> function = (Map<String, Object>) tc.get("function");
@@ -781,11 +756,12 @@ public class AssistantService {
                     + "Inventory updates may run automatically depending on the user's autonomy setting. You must "
                     + "NEVER attempt to delete users or data — those actions do not exist for you.\n"
                     + "Task ordering (IMPORTANT): when a message asks for several tasks, handle them in EXACTLY the "
-                    + "order the user listed them — the FIRST task they mentioned must be acted on FIRST. Make one "
-                    + "tool call at a time and wait for its result before starting the next task; do NOT batch "
-                    + "several tool calls into a single round and do NOT reorder, skip ahead, or start from the "
-                    + "last task. If a later task depends on an earlier one that is still awaiting the user's "
-                    + "confirmation, say so and wait instead of calling tools out of order.\n"
+                    + "order the user listed them — the FIRST task they mentioned must be acted on FIRST, and each "
+                    + "task gets its own tool call so it gets its own confirmation card in the chat. NEVER reorder "
+                    + "the tasks or start from the last one. You may issue several tool calls together to cover all "
+                    + "the requested tasks in that same order — the user will confirm each card in the chat. If a "
+                    + "later task DEPENDS on an earlier one that is still awaiting the user's confirmation, do not "
+                    + "guess its outcome: queue what you can and tell the user to confirm the earlier card first.\n"
                     : "")
                 + formattingRules;
         };
