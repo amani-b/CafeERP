@@ -1,7 +1,9 @@
 package com.cafeerp.assistant;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,11 +15,16 @@ import com.cafeerp.inventory.Inventory;
 import com.cafeerp.inventory.InventoryService;
 import com.cafeerp.menu.MenuItem;
 import com.cafeerp.menu.MenuService;
+import com.cafeerp.menu.MenuItemRepository;
 import com.cafeerp.order.Order;
 import com.cafeerp.order.OrderService;
 import com.cafeerp.order.OrderStatus;
 import com.cafeerp.report.ReportService;
+import com.cafeerp.user.Permission;
 import com.cafeerp.user.Role;
+import com.cafeerp.user.User;
+import com.cafeerp.user.UserSessionLog;
+import com.cafeerp.user.UserSessionLogRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -30,17 +37,23 @@ public class AssistantToolRegistry {
     private final MenuService menuService;
     private final ReportService reportService;
     private final InventoryService inventoryService;
+    private final MenuItemRepository menuItemRepository;
+    private final UserSessionLogRepository sessionLogRepository;
     private final ObjectMapper objectMapper;
 
     public AssistantToolRegistry(OrderService orderService,
                                  MenuService menuService,
                                  ReportService reportService,
                                  InventoryService inventoryService,
+                                 MenuItemRepository menuItemRepository,
+                                 UserSessionLogRepository sessionLogRepository,
                                  ObjectMapper objectMapper) {
         this.orderService = orderService;
         this.menuService = menuService;
         this.reportService = reportService;
         this.inventoryService = inventoryService;
+        this.menuItemRepository = menuItemRepository;
+        this.sessionLogRepository = sessionLogRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -61,6 +74,131 @@ public class AssistantToolRegistry {
             orderStatusTool(), menuItemsTool(),
             salesTotalsTool(), topSellingItemsTool(),
             inventoryLevelTool(), kitchenQueueTool()
+        );
+    }
+
+    // ---------------------------------------------------------------
+    //  Phase 4: permission-scoped tool set for the AGENTIC path
+    // ---------------------------------------------------------------
+
+    /**
+     * The tool set for a specific user, scoped to THEIR OWN effective
+     * permissions. The AI must never be able to surface data the asking user
+     * could not see themselves, so this is the single source of truth for the
+     * agentic tool-calling path (write tools additionally require
+     * {@link Permission#AI_AGENTIC_ACTIONS}).
+     */
+    public List<Map<String, Object>> toolsForUser(User user) {
+        List<Map<String, Object>> tools = new ArrayList<>();
+        if (user == null) {
+            return tools;
+        }
+
+        // Menu is readable by everyone who may use the assistant.
+        tools.add(menuItemsTool());
+
+        if (AgenticPermissions.holds(user, Permission.ORDER_KITCHEN)) {
+            tools.add(orderStatusTool());
+            tools.add(orderHistoryTool());
+            tools.add(kitchenQueueTool());
+        }
+        if (AgenticPermissions.holds(user, Permission.REPORT)) {
+            tools.add(salesTotalsTool());
+            tools.add(topSellingItemsTool());
+        }
+        if (AgenticPermissions.holds(user, Permission.INVENTORY)) {
+            tools.add(inventoryLevelTool());
+        }
+        if (AgenticPermissions.holds(user, Permission.USER_MANAGEMENT)) {
+            tools.add(userLoginHistoryTool());
+            tools.add(userSessionActivityTool());
+        }
+
+        // Write tools: require AI_AGENTIC_ACTIONS plus the module permission.
+        if (AgenticPermissions.isAgentic(user)) {
+            if (AgenticPermissions.holds(user, Permission.ORDER_KITCHEN)) {
+                tools.add(createOrderTool());
+                tools.add(updateOrderStatusTool());
+            }
+            if (AgenticPermissions.holds(user, Permission.INVENTORY)) {
+                tools.add(updateInventoryTool());
+            }
+        }
+        return tools;
+    }
+
+    /** Tool-name set mirroring {@link #toolsForUser(User)} for dispatch checks. */
+    public Set<String> allowedToolNamesForUser(User user) {
+        return toolsForUser(user).stream()
+                .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))
+                .collect(Collectors.toSet());
+    }
+
+    private Map<String, Object> orderHistoryTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "getOrderHistory",
+                "description", "List recent orders (newest first) with id, status, item count and total. Optionally filter by status (PENDING, PREPARING, READY, COMPLETED).",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "status", Map.of(
+                            "type", "string",
+                            "description", "Optional status filter: PENDING, PREPARING, READY or COMPLETED"
+                        ),
+                        "limit", Map.of(
+                            "type", "integer",
+                            "description", "How many orders to return (default 10, max 20)"
+                        )
+                    ),
+                    "required", List.of()
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> userLoginHistoryTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "getUserLoginHistory",
+                "description", "List the most recent LOGIN and LOGOUT events for a user account, newest first. Requires user-management permission.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "username", Map.of(
+                            "type", "string",
+                            "description", "The username to look up"
+                        ),
+                        "limit", Map.of(
+                            "type", "integer",
+                            "description", "How many events to return (default 10, max 20)"
+                        )
+                    ),
+                    "required", List.of("username")
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> userSessionActivityTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "getUserSessionActivity",
+                "description", "Get a session summary for a user: most recent login, most recent logout and total recorded events. Requires user-management permission.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "username", Map.of(
+                            "type", "string",
+                            "description", "The username to look up"
+                        )
+                    ),
+                    "required", List.of("username")
+                )
+            )
         );
     }
 
@@ -161,6 +299,146 @@ public class AssistantToolRegistry {
         );
     }
 
+    private Map<String, Object> createOrderTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "createOrder",
+                "description", "Create a new customer order from menu items. This tool records a pending action that the user must approve in the chat UI.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "items", Map.of(
+                            "type", "array",
+                            "description", "The order lines",
+                            "items", Map.of(
+                                "type", "object",
+                                "properties", Map.of(
+                                    "itemName", Map.of("type", "string", "description", "Exact menu item name"),
+                                    "quantity", Map.of("type", "integer", "description", "Quantity (minimum 1)")
+                                ),
+                                "required", List.of("itemName", "quantity")
+                            )
+                        )
+                    ),
+                    "required", List.of("items")
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> updateOrderStatusTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "updateOrderStatus",
+                "description", "Change the status of an existing order (PENDING, PREPARING, READY, COMPLETED). This tool records a pending action that the user must approve in the chat UI.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "orderId", Map.of("type", "integer", "description", "The numeric ID of the order"),
+                        "status", Map.of("type", "string", "description", "New status: PENDING, PREPARING, READY or COMPLETED")
+                    ),
+                    "required", List.of("orderId", "status")
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> updateInventoryTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "updateInventory",
+                "description", "Set the stock quantity of a tracked menu item. Low-risk: may run automatically when the user has enabled the auto low-risk autonomy mode.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "itemName", Map.of("type", "string", "description", "Exact menu item name"),
+                        "stockQuantity", Map.of("type", "integer", "description", "The new stock quantity (0 or more)")
+                    ),
+                    "required", List.of("itemName", "stockQuantity")
+                )
+            )
+        );
+    }
+
+    // ---------------------------------------------------------------
+    //  Write-tool metadata (confirmation policy + audit descriptions)
+    // ---------------------------------------------------------------
+
+    /** True when the tool mutates data (vs. read-only lookup). */
+    public boolean isWriteTool(String toolName) {
+        return switch (toolName) {
+            case "createOrder", "updateOrderStatus", "updateInventory" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * The module permission that must accompany {@code AI_AGENTIC_ACTIONS} for
+     * this write tool to be executable. Empty for read tools.
+     */
+    public Optional<Permission> requiredPermissionFor(String toolName) {
+        return switch (toolName) {
+            case "createOrder", "updateOrderStatus" -> Optional.of(Permission.ORDER_KITCHEN);
+            case "updateInventory" -> Optional.of(Permission.INVENTORY);
+            default -> Optional.empty();
+        };
+    }
+
+    /**
+     * Confirmation policy: order-impacting actions ALWAYS require explicit
+     * user confirmation regardless of autonomy mode (no fully-autonomous
+     * tier); inventory updates may auto-run in AUTO_LOW_RISK mode.
+     */
+    public boolean requiresConfirmation(String toolName, AgenticAutonomy autonomy) {
+        if (!isWriteTool(toolName)) {
+            return false;
+        }
+        if (autonomy == AgenticAutonomy.AUTO_LOW_RISK && "updateInventory".equals(toolName)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Human-readable one-liner of what the write tool would do (confirmation card / audit log). */
+    public String describeAction(String toolName, String argumentsJson) {
+        try {
+            Map<String, Object> args = objectMapper.readValue(argumentsJson == null ? "{}" : argumentsJson,
+                    new TypeReference<Map<String, Object>>() {});
+            return switch (toolName) {
+                case "createOrder" -> {
+                    StringBuilder sb = new StringBuilder("Create a new order:");
+                    for (Map<String, Object> item : castItemList(args.get("items"))) {
+                        sb.append(String.format(" %s x%s;", item.get("itemName"), item.get("quantity")));
+                    }
+                    yield sb.toString();
+                }
+                case "updateOrderStatus" -> String.format("Change status of order #%s to %s.",
+                        args.get("orderId"), String.valueOf(args.get("status")).toUpperCase());
+                case "updateInventory" -> String.format("Set stock of \"%s\" to %s units.",
+                        args.get("itemName"), args.get("stockQuantity"));
+                default -> "Execute " + toolName;
+            };
+        } catch (Exception e) {
+            return "Execute " + toolName;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> castItemList(Object raw) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        if (raw instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> map) {
+                    items.add((Map<String, Object>) map);
+                }
+            }
+        }
+        return items;
+    }
+
     private Map<String, Object> kitchenQueueTool() {
         return Map.of(
             "type", "function",
@@ -204,6 +482,18 @@ public class AssistantToolRegistry {
      * Executes a tool call and returns a human-readable result string.
      */
     public String execute(String toolName, String argumentsJson) {
+        return execute(toolName, argumentsJson, null);
+    }
+
+    /**
+     * Executes a tool call on behalf of a user. Write tools re-check the
+     * actor's permissions here (defense in depth on top of
+     * {@link #allowedToolNamesForUser}) so an AI can never execute an action
+     * the user lacks the permission for, even if the model hallucinated the
+     * tool call.
+     */
+    public String execute(String toolName, String argumentsJson, User actor) {
+        enforceWritePermissions(toolName, actor);
         try {
             switch (toolName) {
                 case "getOrderStatus": {
@@ -276,15 +566,152 @@ public class AssistantToolRegistry {
                     return String.format("Kitchen queue: PENDING=%d, PREPARING=%d, READY=%d (total active=%d)",
                             pending, preparing, ready, active.size());
                 }
+                case "getOrderHistory": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String statusRaw = args.get("status") == null ? null
+                            : String.valueOf(args.get("status")).trim().toUpperCase();
+                    OrderStatus statusFilter = statusRaw == null || statusRaw.isBlank() ? null
+                            : OrderStatus.valueOf(statusRaw);
+                    int limit = args.get("limit") instanceof Number n ? Math.min(20, Math.max(1, n.intValue())) : 10;
+                    List<Order> orders = orderService.findAll().stream()
+                            .filter(o -> statusFilter == null || o.getStatus() == statusFilter)
+                            .limit(limit)
+                            .toList();
+                    if (orders.isEmpty()) {
+                        return "No orders found" + (statusFilter != null ? " with status " + statusFilter : "") + ".";
+                    }
+                    StringBuilder sb = new StringBuilder("Recent orders (newest first):\n");
+                    for (Order order : orders) {
+                        sb.append(String.format("  - Order #%d: status=%s, items=%d, total=%.2f, created=%s%n",
+                                order.getId(), order.getStatus(), order.getItemCount(),
+                                order.getTotalAmount(), order.getCreatedAt()));
+                    }
+                    return sb.toString();
+                }
+                case "getUserLoginHistory": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String username = String.valueOf(args.get("username"));
+                    int limit = args.get("limit") instanceof Number n ? Math.min(20, Math.max(1, n.intValue())) : 10;
+                    List<UserSessionLog> events = sessionLogRepository
+                            .findByUsernameIgnoreCaseOrderByOccurredAtDescIdDesc(
+                                    username, org.springframework.data.domain.PageRequest.of(0, limit));
+                    if (events.isEmpty()) {
+                        return "No login/logout events recorded for user '" + username + "'.";
+                    }
+                    StringBuilder sb = new StringBuilder("Session history for '" + username + "' (newest first):\n");
+                    for (UserSessionLog event : events) {
+                        sb.append(String.format("  - %s at %s%n", event.getEvent(), event.getOccurredAt()));
+                    }
+                    return sb.toString();
+                }
+                case "getUserSessionActivity": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String username = String.valueOf(args.get("username"));
+                    List<UserSessionLog> events = sessionLogRepository
+                            .findByUsernameIgnoreCaseOrderByOccurredAtDescIdDesc(
+                                    username, org.springframework.data.domain.PageRequest.of(0, 100));
+                    if (events.isEmpty()) {
+                        return "No session activity recorded for user '" + username + "'.";
+                    }
+                    var lastLogin = events.stream()
+                            .filter(e -> e.getEvent() == UserSessionLog.Event.LOGIN).findFirst();
+                    var lastLogout = events.stream()
+                            .filter(e -> e.getEvent() == UserSessionLog.Event.LOGOUT).findFirst();
+                    return String.format(
+                            "Session summary for '%s': total events=%d, last login=%s, last logout=%s",
+                            username, events.size(),
+                            lastLogin.map(UserSessionLog::getOccurredAt).map(Object::toString).orElse("never"),
+                            lastLogout.map(UserSessionLog::getOccurredAt).map(Object::toString).orElse("no logout recorded"));
+                }
+                case "createOrder": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    List<Map<String, Object>> lines = castItemList(args.get("items"));
+                    if (lines.isEmpty()) {
+                        throw new IllegalArgumentException("order must contain at least one item");
+                    }
+                    Map<Long, Integer> quantities = new java.util.LinkedHashMap<>();
+                    StringBuilder summary = new StringBuilder();
+                    for (Map<String, Object> line : lines) {
+                        String itemName = String.valueOf(line.get("itemName")).trim();
+                        int quantity = line.get("quantity") instanceof Number n ? n.intValue() : 0;
+                        if (quantity < 1) {
+                            throw new IllegalArgumentException("quantity must be at least 1 for '" + itemName + "'");
+                        }
+                        MenuItem menuItem = menuItemRepository.findAll().stream()
+                                .filter(m -> m.getName().equalsIgnoreCase(itemName))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalArgumentException("menu item not found: " + itemName));
+                        quantities.merge(menuItem.getId(), quantity, Integer::sum);
+                        summary.append(String.format("%s x%d, ", menuItem.getName(), quantity));
+                    }
+                    Order created = orderService.createOrder(quantities);
+                    return String.format("Created order #%d (%s) total=%.2f",
+                            created.getId(), summary.substring(0, summary.length() - 2),
+                            created.getTotalAmount());
+                }
+                case "updateOrderStatus": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    long orderId = ((Number) args.get("orderId")).longValue();
+                    OrderStatus status = OrderStatus.valueOf(
+                            String.valueOf(args.get("status")).trim().toUpperCase());
+                    orderService.updateStatus(orderId, status);
+                    return String.format("Order #%d status changed to %s", orderId, status);
+                }
+                case "updateInventory": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String itemName = String.valueOf(args.get("itemName"));
+                    int stockQuantity = ((Number) args.get("stockQuantity")).intValue();
+                    if (stockQuantity < 0) {
+                        throw new IllegalArgumentException("stockQuantity cannot be negative");
+                    }
+                    Inventory inv = inventoryService.findAll().stream()
+                            .filter(i -> i.getMenuItem().getName().equalsIgnoreCase(itemName))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException("tracked inventory item not found: " + itemName));
+                    inventoryService.update(inv.getId(), inv.isTrackInventory(),
+                            stockQuantity, inv.getLowStockThreshold());
+                    return String.format("Updated stock of \"%s\" to %d units",
+                            inv.getMenuItem().getName(), stockQuantity);
+                }
                 default:
                     return "Unknown tool: " + toolName;
             }
         } catch (IllegalArgumentException e) {
             log.warn("Tool call failed (business error): tool={}, args={}", toolName, argumentsJson, e);
             return "Not found: " + e.getMessage();
+        } catch (SecurityException e) {
+            log.warn("Tool call rejected (permission): tool={}, user={}",
+                    toolName, actor == null ? "?" : actor.getUsername(), e);
+            return "Permission denied: you are not allowed to use " + toolName + ".";
         } catch (Exception e) {
             log.error("Tool call error: tool={}, args={}", toolName, argumentsJson, e);
             return "Error executing " + toolName + ": " + e.getMessage();
+        }
+    }
+
+    /**
+     * Write tools require the caller to hold {@code AI_AGENTIC_ACTIONS} plus
+     * the owning module permission. Enforced here (defense in depth) so an AI
+     * can never execute an action the user lacks the permission for, even if
+     * the model hallucinated the tool call.
+     */
+    private void enforceWritePermissions(String toolName, User actor) {
+        if (!isWriteTool(toolName)) {
+            return;
+        }
+        boolean allowed = actor != null
+                && AgenticPermissions.holds(actor, Permission.AI_AGENTIC_ACTIONS)
+                && requiredPermissionFor(toolName)
+                        .map(p -> AgenticPermissions.holds(actor, p))
+                        .orElse(false);
+        if (!allowed) {
+            throw new SecurityException("User is not allowed to execute " + toolName);
         }
     }
 }

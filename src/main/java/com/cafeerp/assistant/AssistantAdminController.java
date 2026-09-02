@@ -45,4 +45,15 @@ public class AssistantAdminController {
         model.addAttribute("userName", user.getUsername());
         return "assistant/admin-thread";
     }
+
+    /**
+     * Phase 4 — AI action audit log: every AI-initiated write action (who
+     * initiated it, what tool, with what parameters, confirmed vs
+     * auto-executed, and the result), separate from chat history.
+     */
+    @GetMapping("/actions")
+    public String actionLog(Model model) {
+        model.addAttribute("actions", assistantService.getRecentActionLog());
+        return "assistant/admin-actions";
+    }
 }

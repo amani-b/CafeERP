@@ -11,9 +11,11 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cafeerp.user.Permission;
 import com.cafeerp.user.Role;
 import com.cafeerp.user.User;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -35,6 +37,7 @@ public class AssistantService {
     private final List<ModelProvider> providers;
     private final DeterministicFallbackHandler fallbackHandler;
     private final AssistantAccessGuard accessGuard;
+    private final AssistantActionLogRepository actionLogRepository;
 
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantConversationRepository conversationRepository,
@@ -43,7 +46,8 @@ public class AssistantService {
                             ChatCompletionClient chatCompletionClient,
                             AssistantConfigProperties configProperties,
                             DeterministicFallbackHandler fallbackHandler,
-                            AssistantAccessGuard accessGuard) {
+                            AssistantAccessGuard accessGuard,
+                            AssistantActionLogRepository actionLogRepository) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.toolRegistry = toolRegistry;
@@ -51,6 +55,7 @@ public class AssistantService {
         this.chatCompletionClient = chatCompletionClient;
         this.fallbackHandler = fallbackHandler;
         this.accessGuard = accessGuard;
+        this.actionLogRepository = actionLogRepository;
 
         // Build ordered provider list from configuration
         this.providers = configProperties.getProviders().stream()
@@ -95,7 +100,7 @@ public class AssistantService {
      * "status of order 999999").
      */
     public AssistantReply processMessage(User user, String userMessage) {
-        return processMessage(user, userMessage, null);
+        return processMessage(user, userMessage, null, AgenticAutonomy.ALWAYS_CONFIRM);
     }
 
     /**
@@ -109,13 +114,26 @@ public class AssistantService {
      * round-trip (whose failure used to silently drop the whole turn).
      */
     public AssistantReply processMessage(User user, String userMessage, Long conversationId) {
+        return processMessage(user, userMessage, conversationId, AgenticAutonomy.ALWAYS_CONFIRM);
+    }
+
+    /**
+     * Agentic variant (Phase 4): {@code autonomy} is the user's per-session
+     * autonomy setting, controlling which AI-proposed write actions run
+     * automatically and which need explicit confirmation. It lives in the HTTP
+     * session, so every new session starts back at {@code ALWAYS_CONFIRM}.
+     */
+    public AssistantReply processMessage(User user, String userMessage, Long conversationId,
+                                         AgenticAutonomy autonomy) {
+        AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
-        AssistantReply reply = processMessageInConversation(user, userMessage, conversation);
-        return new AssistantReply(reply.text(), reply.links(), conversation.getId());
+        AssistantReply reply = processMessageInConversation(user, userMessage, conversation, mode);
+        return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingAction());
     }
 
     private AssistantReply processMessageInConversation(User user, String userMessage,
-                                                        AssistantConversation conversation) {
+                                                        AssistantConversation conversation,
+                                                        AgenticAutonomy autonomy) {
         // 1. Persist the user's message — synchronously, in its own committed
         //    transaction, BEFORE any provider work. Chat logging is never
         //    deferred/async, so the turn is queryable the moment this method
@@ -138,7 +156,7 @@ public class AssistantService {
         //      deterministically because a fixed-format answer is objectively clearer
         //      and safer than a generated one.
         //    These rules are intentionally narrow; everything else goes to AI.
-        if (shouldRouteToDeterministicFirst(userMessage, user.getRole())) {
+        if (shouldRouteToDeterministicFirst(userMessage, user)) {
             log.debug("Query matched canonical pattern; routing to deterministic handler first for user '{}'", user.getUsername());
             AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
             if (tier2Reply != null) {
@@ -160,10 +178,11 @@ public class AssistantService {
         // 4. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
 
-        // System prompt (role-specific)
+        // System prompt (role-specific, plus agentic guidance when the user
+        // holds AI_AGENTIC_ACTIONS)
         messages.add(Map.of(
             "role", "system",
-            "content", systemPromptForRole(user.getRole())
+            "content", systemPromptForRole(user)
         ));
 
         // Prior conversation (skip the system prompt slot)
@@ -174,9 +193,9 @@ public class AssistantService {
             messages.add(m);
         }
 
-        // 5. Determine role-appropriate tools
-        List<Map<String, Object>> tools = toolsForRole(user.getRole());
-        Set<String> allowedToolNames = toolRegistry.allowedToolNamesForRole(user.getRole());
+        // 5. Determine the user's permission-scoped tools (agentic path)
+        List<Map<String, Object>> tools = toolRegistry.toolsForUser(user);
+        Set<String> allowedToolNames = toolRegistry.allowedToolNamesForUser(user);
 
         // 6. Try each provider in order — AI path for non-canonical queries
         for (ModelProvider provider : providers) {
@@ -187,7 +206,7 @@ public class AssistantService {
             }
 
             AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
-                    user, conversation);
+                    user, conversation, autonomy);
             if (reply != null) {
                 return reply;
             }
@@ -210,6 +229,104 @@ public class AssistantService {
         return unavailable;
     }
 
+    // ---------------------------------------------------------------
+    //  Phase 4 — agentic actions: audit, confirm, cancel
+    // ---------------------------------------------------------------
+
+    /**
+     * Executes a pending AI-proposed action after explicit user confirmation.
+     * Verifies the action belongs to the caller and is still pending, flips
+     * the audit row to EXECUTED (or FAILED), appends the result to the thread
+     * and returns it as the reply.
+     */
+    public AssistantReply confirmPendingAction(User user, Long actionId, Long conversationId) {
+        AssistantActionLog action = loadOwnPendingAction(user, actionId);
+        AssistantConversation conversation = resolveConversation(user,
+                action.getConversationId() != null ? action.getConversationId() : conversationId);
+
+        String result;
+        try {
+            result = toolRegistry.execute(action.getTool(), action.getParamsJson(), user);
+            action.setStatus(AssistantActionLog.Status.EXECUTED);
+            action.setTriggerMode(AssistantActionLog.TriggerMode.USER_CONFIRMED);
+        } catch (Exception e) {
+            result = "Permission denied: you are not allowed to use " + action.getTool() + ".";
+            action.setStatus(AssistantActionLog.Status.FAILED);
+        }
+        action.setResultSummary(result);
+        actionLogRepository.save(action);
+        log.info("AI action {} by user '{}': tool={}, actionId={}, result={}",
+                action.getStatus(), user.getUsername(), action.getTool(), action.getId(), result);
+
+        String text = AssistantActionLog.Status.EXECUTED.equals(action.getStatus())
+                ? "✅ Done — " + action.getDescription() + "\n\n" + result
+                : result;
+        saveMessage(user, AssistantMessageRole.ASSISTANT, text, conversation);
+        touchConversation(conversation, null);
+        return new AssistantReply(text, List.of(), conversation.getId());
+    }
+
+    /**
+     * Cancels a pending AI-proposed action. Nothing is executed; the audit
+     * row is kept (status CANCELLED) so the trail shows what was proposed
+     * and declined.
+     */
+    public AssistantReply cancelPendingAction(User user, Long actionId, Long conversationId) {
+        AssistantActionLog action = loadOwnPendingAction(user, actionId);
+        AssistantConversation conversation = resolveConversation(user,
+                action.getConversationId() != null ? action.getConversationId() : conversationId);
+
+        action.setStatus(AssistantActionLog.Status.CANCELLED);
+        actionLogRepository.save(action);
+        log.info("AI action cancelled by user '{}': tool={}, actionId={}",
+                user.getUsername(), action.getTool(), action.getId());
+
+        String text = "Cancelled — nothing was changed. (" + action.getDescription() + ")";
+        saveMessage(user, AssistantMessageRole.ASSISTANT, text, conversation);
+        touchConversation(conversation, null);
+        return new AssistantReply(text, List.of(), conversation.getId());
+    }
+
+    private AssistantActionLog loadOwnPendingAction(User user, Long actionId) {
+        AssistantActionLog action = actionLogRepository.findById(actionId)
+                .orElseThrow(() -> new IllegalArgumentException("Pending action not found"));
+        if (!action.getUser().getId().equals(user.getId())
+                || action.getStatus() != AssistantActionLog.Status.PENDING_CONFIRMATION) {
+            // Never execute or cancel another user's action, and never re-run one.
+            throw new IllegalArgumentException("Pending action not found");
+        }
+        return action;
+    }
+
+    /** Audit row for a write tool that ran without explicit confirmation. */
+    private void auditExecuted(User user, AssistantConversation conversation, String tool,
+                               String argsJson, String result,
+                               AssistantActionLog.TriggerMode mode) {
+        try {
+            AssistantActionLog audit = new AssistantActionLog();
+            audit.setUser(user);
+            audit.setConversationId(conversation.getId());
+            audit.setTool(tool);
+            audit.setParamsJson(argsJson);
+            audit.setDescription(toolRegistry.describeAction(tool, argsJson));
+            audit.setStatus(result.startsWith("Permission denied")
+                    ? AssistantActionLog.Status.FAILED
+                    : AssistantActionLog.Status.EXECUTED);
+            audit.setTriggerMode(mode);
+            audit.setResultSummary(result);
+            actionLogRepository.save(audit);
+        } catch (Exception e) {
+            // Audit must never break the chat flow.
+            log.error("Failed to write AI action audit row for user '{}'", user.getUsername(), e);
+        }
+    }
+
+    /** Newest audit rows for the admin AI-action log page. */
+    @Transactional(readOnly = true)
+    public List<AssistantActionLog> getRecentActionLog() {
+        return actionLogRepository.findAllByOrderByCreatedAtDescIdDesc(PageRequest.of(0, 100));
+    }
+
     /**
      * Rule-based classifier to decide if a query should bypass AI and go straight
      * to the deterministic handler. Returns true only for narrow, unambiguous
@@ -222,8 +339,8 @@ public class AssistantService {
      * </ul>
      * Everything else returns false and goes through the AI provider chain.
      */
-    private boolean shouldRouteToDeterministicFirst(String userMessage, Role role) {
-        Set<String> allowedTools = toolRegistry.allowedToolNamesForRole(role);
+    private boolean shouldRouteToDeterministicFirst(String userMessage, User user) {
+        Set<String> allowedTools = toolRegistry.allowedToolNamesForUser(user);
         // Only route order lookups to deterministic first if the user has access to getOrderStatus
         if (!allowedTools.contains("getOrderStatus")) {
             return false;
@@ -264,14 +381,15 @@ public class AssistantService {
                                        List<Map<String, Object>> tools,
                                        Set<String> allowedToolNames,
                                        User user,
-                                       AssistantConversation conversation) {
+                                       AssistantConversation conversation,
+                                       AgenticAutonomy autonomy) {
         log.info("Attempting provider: {} (model: {})", provider.name(), provider.model());
 
         // Deep-copy messages so each provider starts fresh
         List<Map<String, Object>> msgs = deepCopyMessages(messages);
 
         List<String> firedToolNames = new ArrayList<>();
-        Map<String, String> toolNameToUrl = buildSourceUrlMap(user.getRole());
+        Map<String, String> toolNameToUrl = buildSourceUrlMap(user);
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
             Map<String, Object> response = callProvider(provider, msgs, tools);
@@ -330,10 +448,50 @@ public class AssistantService {
                 }
 
                 hadValidCall = true;
-                firedToolNames.add(name);
                 log.debug("Executing tool: {} with args: {}", name, args);
 
-                String result = toolRegistry.execute(name, args);
+                // Phase 4 — write tools: confirmation gate + audit logging.
+                if (toolRegistry.isWriteTool(name)) {
+                    if (toolRegistry.requiresConfirmation(name, autonomy)) {
+                        // Persist the proposed action as a pending confirmation,
+                        // surfaced to the user as an action card. Nothing is
+                        // executed until they confirm via the UI endpoint.
+                        AssistantActionLog pending = new AssistantActionLog();
+                        pending.setUser(user);
+                        pending.setConversationId(conversation.getId());
+                        pending.setTool(name);
+                        pending.setParamsJson(args);
+                        pending.setDescription(toolRegistry.describeAction(name, args));
+                        pending.setStatus(AssistantActionLog.Status.PENDING_CONFIRMATION);
+                        actionLogRepository.save(pending);
+                        log.info("AI action pending confirmation: user='{}', tool={}, actionId={}",
+                                user.getUsername(), name, pending.getId());
+
+                        String text = "I've prepared an action for your approval:\n\n**"
+                                + pending.getDescription() + "**\n\n"
+                                + "Review it above and confirm to run it, or cancel if this isn't right.";
+                        saveMessage(user, AssistantMessageRole.ASSISTANT, text, conversation);
+                        return new AssistantReply(text, List.of(), conversation.getId(),
+                                new AssistantReply.PendingActionView(pending.getId(), name,
+                                        pending.getDescription(), args));
+                    }
+
+                    // Low-risk auto execution (only reachable in AUTO_LOW_RISK mode)
+                    String autoResult = toolRegistry.execute(name, args, user);
+                    auditExecuted(user, conversation, name, args, autoResult,
+                            AssistantActionLog.TriggerMode.AUTO_EXECUTED);
+                    firedToolNames.add(name);
+
+                    Map<String, Object> autoToolMessage = new HashMap<>();
+                    autoToolMessage.put("role", "tool");
+                    autoToolMessage.put("tool_call_id", id);
+                    autoToolMessage.put("content", autoResult);
+                    msgs.add(autoToolMessage);
+                    continue;
+                }
+
+                firedToolNames.add(name);
+                String result = toolRegistry.execute(name, args, user);
 
                 Map<String, Object> toolMessage = new HashMap<>();
                 toolMessage.put("role", "tool");
@@ -468,6 +626,20 @@ public class AssistantService {
     // ---------------------------------------------------------------
 
     private String systemPromptForRole(Role role) {
+        return systemPromptForRole(role, false);
+    }
+
+    /**
+     * Role prompt plus, for agentic users (AI_AGENTIC_ACTIONS), guidance on
+     * how write tools behave: order-impacting actions record a pending
+     * confirmation the user must approve in the UI.
+     */
+    private String systemPromptForRole(User user) {
+        boolean agentic = AgenticPermissions.isAgentic(user);
+        return systemPromptForRole(user.getRole(), agentic);
+    }
+
+    private String systemPromptForRole(Role role, boolean agentic) {
         String formattingRules =
                 "Formatting rules — follow them exactly: respond in clean, professional Markdown that renders "
                 + "tightly and scans quickly. Use compact short paragraphs separated by AT MOST one blank line — "
@@ -519,46 +691,58 @@ public class AssistantService {
                 + "question. Never discuss what tools other roles have.\n"
                 + "Voice: human, encouraging, plainspoken — contractions welcome, no corporate jargon. Speak to "
                 + "the owner like a trusted colleague: honest about problems, constructive about fixes.\n"
+                + (agentic
+                    ? "Agentic actions: you can create orders, change order statuses and update inventory counts "
+                    + "with your write tools. Use them when the user clearly asks for the change — never on a guess. "
+                    + "Order-impacting actions (createOrder, updateOrderStatus) are recorded as a pending action the "
+                    + "user must approve in the chat UI, so tell them plainly what you are about to do and why. "
+                    + "Inventory updates may run automatically depending on the user's autonomy setting. You must "
+                    + "NEVER attempt to delete users or data — those actions do not exist for you.\n"
+                    : "")
                 + formattingRules;
         };
     }
 
-    private List<Map<String, Object>> toolsForRole(Role role) {
-        return switch (role) {
-            case STAFF -> toolRegistry.toolsForStaff();
-            case KITCHEN -> toolRegistry.toolsForKitchen();
-            case ADMIN, SUPER_ADMIN -> toolRegistry.toolsForAdmin();
-        };
-    }
-
-    private Map<String, String> buildSourceUrlMap(Role role) {
+    /** Source links for the permission-scoped agentic tool set. */
+    private Map<String, String> buildSourceUrlMap(User user) {
         Map<String, String> map = new HashMap<>();
         map.put("getMenuItems", "/menu");
         map.put("getKitchenQueueSummary", "/kitchen");
+        map.put("getOrderStatus", "/orders/{id}");
+        map.put("getOrderHistory", "/orders");
 
-        if (role == Role.KITCHEN) {
-            map.put("getOrderStatus", "/kitchen");
-        } else {
-            map.put("getOrderStatus", "/orders/{id}");
-        }
-
-        if (role == Role.ADMIN || role == Role.SUPER_ADMIN) {
+        if (AgenticPermissions.holds(user, Permission.REPORT)) {
             map.put("getSalesTotals", "/reports");
             map.put("getTopSellingItems", "/reports");
-            map.put("getInventoryLevel", "/inventory");
         }
-
+        if (AgenticPermissions.holds(user, Permission.INVENTORY)) {
+            map.put("getInventoryLevel", "/inventory");
+            map.put("updateInventory", "/inventory");
+        }
+        if (AgenticPermissions.holds(user, Permission.ORDER_KITCHEN)) {
+            map.put("createOrder", "/orders");
+            map.put("updateOrderStatus", "/orders/{id}");
+        }
+        if (AgenticPermissions.holds(user, Permission.USER_MANAGEMENT)) {
+            map.put("getUserLoginHistory", "/admin/users");
+            map.put("getUserSessionActivity", "/admin/users");
+        }
         return map;
     }
 
     private String labelForTool(String toolName) {
         return switch (toolName) {
             case "getOrderStatus" -> "View Order";
+            case "getOrderHistory" -> "View Orders";
             case "getMenuItems" -> "View Menu";
             case "getSalesTotals" -> "View Sales Report";
             case "getTopSellingItems" -> "View Sales Report";
             case "getInventoryLevel" -> "View Inventory";
             case "getKitchenQueueSummary" -> "View Kitchen Queue";
+            case "getUserLoginHistory", "getUserSessionActivity" -> "View Users";
+            case "createOrder" -> "View Orders";
+            case "updateOrderStatus" -> "View Order";
+            case "updateInventory" -> "View Inventory";
             default -> "View Details";
         };
     }
@@ -663,12 +847,24 @@ public class AssistantService {
     //  Value objects
     // ---------------------------------------------------------------
 
-    public record AssistantReply(String text, List<SourceLink> links, Long conversationId) {
+    public record AssistantReply(String text, List<SourceLink> links, Long conversationId,
+                                 PendingActionView pendingAction) {
 
         /** Convenience constructor for replies that don't know their thread. */
         public AssistantReply(String text, List<SourceLink> links) {
-            this(text, links, null);
+            this(text, links, null, null);
         }
+
+        /** Convenience constructor for replies with a known thread. */
+        public AssistantReply(String text, List<SourceLink> links, Long conversationId) {
+            this(text, links, conversationId, null);
+        }
+
+        /**
+         * Set when the AI proposed a write action that requires the user's
+         * explicit confirmation (Phase 4 confirmation flow).
+         */
+        public record PendingActionView(Long id, String tool, String description, String paramsJson) {}
     }
 
     public record SourceLink(String label, String url) {}
