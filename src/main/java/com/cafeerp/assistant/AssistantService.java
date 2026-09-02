@@ -26,7 +26,7 @@ public class AssistantService {
 
     private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
 
-    private static final int MAX_TOOL_ROUNDS = 8;
+    private static final int MAX_TOOL_ROUNDS = 12;
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
     private final AssistantMessageRepository messageRepository;
@@ -128,7 +128,7 @@ public class AssistantService {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
         AssistantReply reply = processMessageInConversation(user, userMessage, conversation, mode);
-        return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingAction());
+        return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
     }
 
     private AssistantReply processMessageInConversation(User user, String userMessage,
@@ -408,6 +408,12 @@ public class AssistantService {
 
         List<String> firedToolNames = new ArrayList<>();
         Map<String, String> toolNameToUrl = buildSourceUrlMap(user);
+        // Write actions queued for the user's confirmation (Phase 4). There
+        // can be SEVERAL in one turn — a single message may request multiple
+        // tasks, so every confirmation-requiring call gets its own pending
+        // card instead of aborting the rest of the turn.
+        List<AssistantReply.PendingActionView> pendingActions = new ArrayList<>();
+        StringBuilder pendingSummary = new StringBuilder();
 
         for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
             Map<String, Object> response = callProvider(provider, msgs, tools);
@@ -425,6 +431,7 @@ public class AssistantService {
             if (toolCalls == null || toolCalls.isEmpty()) {
                 // Final response — persist and return
                 String finalText = content != null ? content : "";
+                finalText = appendPendingActionsNote(finalText, pendingActions, pendingSummary);
                 saveMessage(user, AssistantMessageRole.ASSISTANT, finalText, conversation);
 
                 List<SourceLink> links = firedToolNames.stream()
@@ -436,7 +443,7 @@ public class AssistantService {
                         .distinct()
                         .toList();
 
-                return new AssistantReply(finalText, links);
+                return new AssistantReply(finalText, links, conversation.getId(), pendingActions);
             }
 
             // Add the assistant's message with tool_calls to the conversation
@@ -474,6 +481,10 @@ public class AssistantService {
                         // Persist the proposed action as a pending confirmation,
                         // surfaced to the user as an action card. Nothing is
                         // executed until they confirm via the UI endpoint.
+                        // IMPORTANT: we do NOT return here — the remaining
+                        // tool calls in this round and further rounds (the
+                        // user's other tasks) still run, so a single message
+                        // can accomplish as many tasks as it requests.
                         AssistantActionLog pending = new AssistantActionLog();
                         pending.setUser(user);
                         pending.setConversationId(conversation.getId());
@@ -485,13 +496,23 @@ public class AssistantService {
                         log.info("AI action pending confirmation: user='{}', tool={}, actionId={}",
                                 user.getUsername(), name, pending.getId());
 
-                        String text = "I've prepared an action for your approval:\n\n**"
-                                + pending.getDescription() + "**\n\n"
-                                + "Review it above and confirm to run it, or cancel if this isn't right.";
-                        saveMessage(user, AssistantMessageRole.ASSISTANT, text, conversation);
-                        return new AssistantReply(text, List.of(), conversation.getId(),
-                                new AssistantReply.PendingActionView(pending.getId(), name,
-                                        pending.getDescription(), args));
+                        pendingActions.add(new AssistantReply.PendingActionView(
+                                pending.getId(), name, pending.getDescription(), args));
+                        pendingSummary.append("\n- ").append(pending.getDescription());
+
+                        // Feed the model a tool result so it knows the action
+                        // is queued (not executed) and can carry on with any
+                        // remaining independent tasks in the same turn.
+                        Map<String, Object> pendingToolMessage = new HashMap<>();
+                        pendingToolMessage.put("role", "tool");
+                        pendingToolMessage.put("tool_call_id", id);
+                        pendingToolMessage.put("content",
+                                "Queued for user confirmation (action id " + pending.getId()
+                                        + "). It has NOT been executed yet. Continue with any "
+                                        + "remaining independent tasks; do NOT repeat this call "
+                                        + "and do NOT make further calls that depend on its outcome.");
+                        msgs.add(pendingToolMessage);
+                        continue;
                     }
 
                     // Low-risk auto execution (only reachable in AUTO_LOW_RISK mode)
@@ -527,6 +548,7 @@ public class AssistantService {
         log.warn("Provider {} hit {} round cap", provider.name(), MAX_TOOL_ROUNDS);
         String fallback = "I've gathered some information but need more detail to give a complete answer. "
                 + "Could you rephrase or narrow down your question?";
+        fallback = appendPendingActionsNote(fallback, pendingActions, pendingSummary);
         saveMessage(user, AssistantMessageRole.ASSISTANT, fallback, conversation);
 
         List<SourceLink> links = firedToolNames.stream()
@@ -538,7 +560,24 @@ public class AssistantService {
                 .distinct()
                 .toList();
 
-        return new AssistantReply(fallback, links);
+        return new AssistantReply(fallback, links, conversation.getId(), pendingActions);
+    }
+
+    /**
+     * When the turn queued write actions for confirmation, make sure the
+     * persisted reply tells the user what awaits approval (the cards render
+     * from the pendingActions payload, but the text must stand alone too).
+     */
+    private static String appendPendingActionsNote(String text,
+                                                   List<AssistantReply.PendingActionView> pendingActions,
+                                                   StringBuilder pendingSummary) {
+        if (pendingActions == null || pendingActions.isEmpty()) {
+            return text;
+        }
+        return text + "\n\n**Awaiting your approval (" + pendingActions.size()
+                + (pendingActions.size() == 1 ? " action):**" : " actions):**")
+                + pendingSummary
+                + "\n\nReview the cards above and confirm to run them, or cancel any that isn't right.";
     }
 
     /**
@@ -866,21 +905,23 @@ public class AssistantService {
     // ---------------------------------------------------------------
 
     public record AssistantReply(String text, List<SourceLink> links, Long conversationId,
-                                 PendingActionView pendingAction) {
+                                 List<PendingActionView> pendingActions) {
 
         /** Convenience constructor for replies that don't know their thread. */
         public AssistantReply(String text, List<SourceLink> links) {
-            this(text, links, null, null);
+            this(text, links, null, List.of());
         }
 
         /** Convenience constructor for replies with a known thread. */
         public AssistantReply(String text, List<SourceLink> links, Long conversationId) {
-            this(text, links, conversationId, null);
+            this(text, links, conversationId, List.of());
         }
 
         /**
-         * Set when the AI proposed a write action that requires the user's
-         * explicit confirmation (Phase 4 confirmation flow).
+         * Set when the AI proposed write actions that require the user's
+         * explicit confirmation (Phase 4 confirmation flow). There may be
+         * SEVERAL — a single message can request multiple tasks, and each
+         * confirmation-requiring action gets its own card.
          */
         public record PendingActionView(Long id, String tool, String description, String paramsJson) {}
     }

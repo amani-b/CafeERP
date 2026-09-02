@@ -340,8 +340,8 @@
             // The server tells us which thread the turn persisted into.
             if (reply.conversationId) currentConversationId = reply.conversationId;
             addAssistantMessageWithReveal(reply.text, reply.links || []);
-            if (reply.pendingAction) {
-                renderPendingActionCard(reply.pendingAction);
+            if (reply.pendingActions && reply.pendingActions.length) {
+                reply.pendingActions.forEach(renderPendingActionCard);
             }
             // The turn is now durably persisted (server writes both sides
             // synchronously before responding) — re-sync the thread from
