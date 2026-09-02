@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.AbstractMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -335,15 +336,38 @@ public class AssistantService {
      */
     @Transactional(readOnly = true)
     public List<AssistantReply.PendingActionView> getPendingActions(User user, Long conversationId) {
-        return actionLogRepository
-                .findByUserAndStatusOrderByIdDesc(user, AssistantActionLog.Status.PENDING_CONFIRMATION)
+        // Ascending creation order first (the repo query is newest-first), then a
+        // stable sort by the model-declared taskOrder so a multi-task turn's
+        // confirmation cards always reload in the order the user listed the tasks.
+        List<AssistantReply.PendingActionView> views = new ArrayList<>();
+        actionLogRepository.findByUserAndStatusOrderByIdDesc(user, AssistantActionLog.Status.PENDING_CONFIRMATION)
                 .stream()
                 .filter(a -> a.getConversationId() == null
                         || a.getConversationId().equals(conversationId))
                 .map(a -> new AssistantReply.PendingActionView(
                         a.getId(), a.getTool(), a.getDescription(), a.getParamsJson()))
-                .toList();
+                .forEach(views::add);
+        java.util.Collections.reverse(views);
+        views.sort(java.util.Comparator.comparingInt(this::pendingTaskOrderOf));
+        return views;
     }
+
+    /** taskOrder (1-based) parsed from a pending action's params; untagged actions sort by id after tagged ones. */
+    private int pendingTaskOrderOf(AssistantReply.PendingActionView view) {
+        try {
+            Map<String, Object> args = objectMapper.readValue(view.paramsJson() == null ? "{}" : view.paramsJson(),
+                    new TypeReference<Map<String, Object>>() {});
+            Object order = args.get("taskOrder");
+            if (order instanceof Number n && n.intValue() >= 1) {
+                return n.intValue();
+            }
+        } catch (Exception e) {
+            // Malformed params — fall through to the id fallback below.
+        }
+        // Keeps untagged actions in ascending-id order, after all tagged ones.
+        return Integer.MAX_VALUE - (1_000_000 - (int) Math.min(view.id() == null ? 0 : view.id(), 1_000_000L));
+    }
+
 
     /**
      * Rule-based classifier to decide if a query should bypass AI and go straight
@@ -449,34 +473,22 @@ public class AssistantService {
             // Add the assistant's message with tool_calls to the conversation
             msgs.add(message);
 
+            // Deterministic left-to-right card ordering: sort this round's
+            // tool calls by the model-declared `taskOrder` (the task's
+            // 1-based position in the user's message) before executing.
+            // The sort is stable — untagged calls keep their original
+            // relative order — so pending actions (and therefore the
+            // confirmation cards, both live and on reload) always appear
+            // exactly in the order the user listed their tasks.
+            List<Map<String, Object>> orderedCalls = orderToolCallsByTaskOrder(toolCalls);
+
             // Execute each tool call — with validation against allowed tool names
             boolean hadValidCall = false;
-            int toolCallIndex = 0;
-            for (Map<String, Object> tc : toolCalls) {
+            for (Map<String, Object> tc : orderedCalls) {
                 String id = (String) tc.get("id");
                 Map<String, Object> function = (Map<String, Object>) tc.get("function");
                 String name = (String) function.get("name");
                 String args = (String) function.get("arguments");
-
-                // Deterministic left-to-right execution: even though the
-                // system prompt demands one call at a time, a provider may
-                // still batch several tool calls into one response. Only the
-                // FIRST call in a batch runs now; the rest are deferred so
-                // the model re-issues them one at a time — preserving the
-                // order the user listed their tasks in.
-                if (++toolCallIndex > 1) {
-                    log.debug("Deferring tool call #{} ('{}') in a {}-call batch to enforce sequential order",
-                            toolCallIndex, name, toolCalls.size());
-                    Map<String, Object> deferredToolMessage = new HashMap<>();
-                    deferredToolMessage.put("role", "tool");
-                    deferredToolMessage.put("tool_call_id", id);
-                    deferredToolMessage.put("content",
-                            "Deferred. Tools run strictly ONE at a time, in the order the user listed their "
-                                    + "tasks (left to right). Re-issue this exact call by itself in your next "
-                                    + "response, after the previous call's result has been handled.");
-                    msgs.add(deferredToolMessage);
-                    continue;
-                }
 
                 // SECURITY: Validate tool name against the request's allowed set
                 if (!allowedToolNames.contains(name)) {
@@ -529,10 +541,11 @@ public class AssistantService {
                         pendingToolMessage.put("tool_call_id", id);
                         pendingToolMessage.put("content",
                                 "Queued for user confirmation (action id " + pending.getId()
-                                        + "). It has NOT been executed yet. Continue with the user's remaining "
-                                        + "tasks ONE AT A TIME (next task = next tool call in your next response); "
-                                        + "do NOT repeat this call and do NOT make further calls that depend on its "
-                                        + "outcome.");
+                                        + "). It has NOT been executed yet. If the user's request includes MORE "
+                                        + "tasks, IMMEDIATELY issue their tool calls too (one call per task, with "
+                                        + "the correct taskOrder) — do NOT wait for the user to ask again and do NOT "
+                                        + "stop until every task they mentioned has its own call. Do NOT repeat this "
+                                        + "call and do NOT make calls that depend on this one's outcome.");
                         msgs.add(pendingToolMessage);
                         continue;
                     }
@@ -777,17 +790,66 @@ public class AssistantService {
                     + "user must approve in the chat UI, so tell them plainly what you are about to do and why. "
                     + "Inventory updates may run automatically depending on the user's autonomy setting. You must "
                     + "NEVER attempt to delete users or data — those actions do not exist for you.\n"
-                    + "Task ordering (CRITICAL): when a message asks for several tasks, handle them in EXACTLY the "
-                    + "order the user wrote them — read their request left to right; the FIRST task they mentioned "
-                    + "must be acted on FIRST, the second next, and so on. To guarantee this, issue ONE tool call "
-                    + "per response and WAIT for its result before issuing the next call. NEVER batch several tool "
-                    + "calls into a single response, NEVER reorder the tasks, and NEVER start from the last one. "
-                    + "Each task gets its own tool call so it gets its own confirmation card in the chat. If a "
-                    + "later task DEPENDS on an earlier one that is still awaiting the user's confirmation, do not "
-                    + "guess its outcome: tell the user to confirm the earlier card first.\n"
+                    + "Task handling (CRITICAL): when a message asks for several tasks, you MUST cover EVERY task "
+                    + "the user mentioned — one tool call per task, ALL issued before you write your final answer. "
+                    + "Issue them in the SAME order the tasks appear in the user's message (read it left to right) "
+                    + "and set each call's taskOrder parameter to that task's 1-based position in the message "
+                    + "(first-mentioned task = taskOrder 1, second = 2, and so on). NEVER skip a task, NEVER stop "
+                    + "after the first one, and NEVER ask the user to prompt you to continue — queue every "
+                    + "remaining task immediately. Each task gets its own tool call so it gets its own "
+                    + "confirmation card, and the cards appear in exactly the order the user listed the tasks. "
+                    + "If a later task DEPENDS on an earlier one that is still awaiting the user's confirmation, "
+                    + "do not guess its outcome: tell the user to confirm the earlier card first.\n"
                     : "")
                 + formattingRules;
         };
+    }
+
+    /**
+     * Orders a round's tool calls by the model-declared {@code taskOrder}
+     * (the task's 1-based position in the user's message) so confirmation
+     * cards render exactly in the order the user listed their tasks.
+     * Stable: calls without a usable {@code taskOrder} keep their original
+     * relative order, after any tagged calls.
+     */
+    private List<Map<String, Object>> orderToolCallsByTaskOrder(List<Map<String, Object>> toolCalls) {
+        if (toolCalls.size() < 2) {
+            return toolCalls;
+        }
+        List<Map.Entry<Integer, Map<String, Object>>> indexed = new ArrayList<>();
+        for (int i = 0; i < toolCalls.size(); i++) {
+            indexed.add(new AbstractMap.SimpleImmutableEntry<>(i, toolCalls.get(i)));
+        }
+        // List.sort is stable (TimSort) — ties keep their original order.
+        indexed.sort((a, b) -> Integer.compare(taskOrderOf(a.getValue(), a.getKey()),
+                taskOrderOf(b.getValue(), b.getKey())));
+        List<Map<String, Object>> ordered = new ArrayList<>(toolCalls.size());
+        for (Map.Entry<Integer, Map<String, Object>> e : indexed) {
+            ordered.add(e.getValue());
+        }
+        if (log.isDebugEnabled() && !ordered.equals(toolCalls)) {
+            log.debug("Reordered {} tool calls by taskOrder to match the user's stated task sequence",
+                    toolCalls.size());
+        }
+        return ordered;
+    }
+
+    /** Extracts the model-declared taskOrder (1-based) or a fallback that preserves the original position. */
+    private int taskOrderOf(Map<String, Object> toolCall, int originalIndex) {
+        try {
+            Map<String, Object> function = (Map<String, Object>) toolCall.get("function");
+            String argsJson = (String) function.get("arguments");
+            Map<String, Object> args = objectMapper.readValue(argsJson == null ? "{}" : argsJson,
+                    new TypeReference<Map<String, Object>>() {});
+            Object order = args.get("taskOrder");
+            if (order instanceof Number n && n.intValue() >= 1) {
+                return n.intValue();
+            }
+        } catch (Exception e) {
+            // Malformed arguments — fall through to the positional fallback.
+        }
+        // Untagged calls sort after all tagged ones, in their original order.
+        return Integer.MAX_VALUE - (1_000_000 - originalIndex);
     }
 
     /** Source links for the permission-scoped agentic tool set. */

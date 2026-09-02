@@ -319,6 +319,10 @@ public class AssistantToolRegistry {
                                 ),
                                 "required", List.of("itemName", "quantity")
                             )
+                        ),
+                        "taskOrder", Map.of(
+                            "type", "integer",
+                            "description", "1-based position of this task in the user's message (first-mentioned task = 1, second = 2, ...). Required when the message requests multiple tasks."
                         )
                     ),
                     "required", List.of("items")
@@ -337,7 +341,8 @@ public class AssistantToolRegistry {
                     "type", "object",
                     "properties", Map.of(
                         "orderId", Map.of("type", "integer", "description", "The numeric ID of the order"),
-                        "status", Map.of("type", "string", "description", "New status: PENDING, PREPARING, READY or COMPLETED")
+                        "status", Map.of("type", "string", "description", "New status: PENDING, PREPARING, READY or COMPLETED"),
+                        "taskOrder", Map.of("type", "integer", "description", "1-based position of this task in the user's message (first-mentioned task = 1, second = 2, ...). Required when the message requests multiple tasks.")
                     ),
                     "required", List.of("orderId", "status")
                 )
@@ -355,7 +360,8 @@ public class AssistantToolRegistry {
                     "type", "object",
                     "properties", Map.of(
                         "itemName", Map.of("type", "string", "description", "Exact menu item name"),
-                        "stockQuantity", Map.of("type", "integer", "description", "The new stock quantity (0 or more)")
+                        "stockQuantity", Map.of("type", "integer", "description", "The new stock quantity (0 or more)"),
+                        "taskOrder", Map.of("type", "integer", "description", "1-based position of this task in the user's message (first-mentioned task = 1, second = 2, ...). Required when the message requests multiple tasks.")
                     ),
                     "required", List.of("itemName", "stockQuantity")
                 )
