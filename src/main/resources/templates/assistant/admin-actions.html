@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(title='AI Action Log')}"></head>
+<body class="authenticated">
+<div th:replace="~{fragments/layout :: sidebar(activePage='assistant-actions')}"></div>
+<div th:replace="~{fragments/layout :: mobile-header}"></div>
+<div th:replace="~{fragments/layout :: mobile-nav(activePage='assistant-actions')}"></div>
+
+<main class="app-main uk-container max-w-7xl mx-auto px-4 py-8">
+    <!-- Page header -->
+    <section class="page-header card-pad mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <p class="eyebrow text-sm font-medium uppercase tracking-wider mb-1">Cafe ERP</p>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">AI Action Log</h1>
+                <p class="subtitle text-sm mt-1">Audit trail of every AI-initiated action, separate from chat history. Shows the 100 most recent entries.</p>
+            </div>
+            <span class="badge" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Admin only
+            </span>
+        </div>
+    </section>
+
+    <!-- Audit table -->
+    <section class="card card-pad">
+        <div th:if="${#lists.isEmpty(actions)}" class="empty-state">
+            <div class="icon-tile">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <h3>No AI actions recorded yet</h3>
+            <p>Write actions proposed or executed by the assistant will appear here.</p>
+        </div>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(actions)}">
+            <table class="uk-table uk-table-middle">
+                <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Initiator</th>
+                    <th>Tool</th>
+                    <th>Action</th>
+                    <th>Parameters</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Result</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="a : ${actions}">
+                    <td class="text-sm text-muted num"
+                        th:text="${#temporals.format(a.createdAt, 'MMM d, HH:mm')}">Jan 1, 09:00</td>
+                    <td class="text-sm font-medium" th:text="${a.user.username}">owner1</td>
+                    <td><code class="text-sm" th:text="${a.tool}">createOrder</code></td>
+                    <td class="text-sm" th:text="${a.description}">Create a new order</td>
+                    <td><code class="text-xs text-muted" th:text="${a.paramsJson}">{}</code></td>
+                    <td>
+                        <span class="badge badge-ink" th:if="${a.triggerMode != null and a.triggerMode.name() == 'USER_CONFIRMED'}">Confirmed</span>
+                        <span class="badge badge-info" th:if="${a.triggerMode != null and a.triggerMode.name() == 'AUTO_EXECUTED'}">Auto</span>
+                        <span class="badge badge-neutral" th:if="${a.triggerMode == null}">&mdash;</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-ink" th:if="${a.status.name() == 'EXECUTED'}">Executed</span>
+                        <span class="badge badge-warn" th:if="${a.status.name() == 'PENDING_CONFIRMATION'}">Pending</span>
+                        <span class="badge badge-neutral" th:if="${a.status.name() == 'CANCELLED'}">Cancelled</span>
+                        <span class="badge badge-warn" th:if="${a.status.name() == 'FAILED'}">Failed</span>
+                    </td>
+                    <td class="text-sm text-muted" th:text="${a.resultSummary}">&mdash;</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<div th:replace="~{fragments/layout :: assistant-widget}"></div>
+</body>
+</html>

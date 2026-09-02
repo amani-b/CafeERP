@@ -25,11 +25,19 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
     private final UserRepository userRepository;
+    /**
+     * Optional: {@code @WebMvcTest} slices import this configuration but do
+     * not scan {@code @Component} handlers, so the audit handler may be
+     * absent there. In production it is always present.
+     */
+    private final org.springframework.beans.factory.ObjectProvider<AuditLogoutSuccessHandler> auditLogoutSuccessHandler;
 
     public SecurityConfig(CustomUserDetailsService userDetailsService,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          org.springframework.beans.factory.ObjectProvider<AuditLogoutSuccessHandler> auditLogoutSuccessHandler) {
         this.userDetailsService = userDetailsService;
         this.userRepository = userRepository;
+        this.auditLogoutSuccessHandler = auditLogoutSuccessHandler;
     }
 
     @Bean
@@ -61,7 +69,18 @@ public class SecurityConfig {
             )
             .logout(logout -> logout
                 .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout")
+                // Custom handler writes the LOGOUT row to user_session_log
+                // (Phase 4 session audit) then redirects to /login?logout.
+                .logoutSuccessHandler(auditLogoutSuccessHandler.getIfAvailable(
+                        () -> new AuditLogoutSuccessHandler(null, null) {
+                            @Override
+                            public void onLogoutSuccess(jakarta.servlet.http.HttpServletRequest request,
+                                                        jakarta.servlet.http.HttpServletResponse response,
+                                                        org.springframework.security.core.Authentication authentication)
+                                    throws java.io.IOException {
+                                response.sendRedirect("/login?logout");
+                            }
+                        }))
                 .permitAll()
             )
             .userDetailsService(userDetailsService)

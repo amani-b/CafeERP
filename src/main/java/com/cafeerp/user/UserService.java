@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cafeerp.assistant.AssistantActionLogRepository;
 import com.cafeerp.assistant.AssistantConversationRepository;
 import com.cafeerp.assistant.AssistantMessageRepository;
 
@@ -27,15 +28,22 @@ public class UserService {
     // no bean-level dependency cycle with the assistant package.
     private final AssistantMessageRepository messageRepository;
     private final AssistantConversationRepository conversationRepository;
+    // Phase 4 audit tables also FK cafe_user, so hard delete must purge them.
+    private final com.cafeerp.user.UserSessionLogRepository sessionLogRepository;
+    private final AssistantActionLogRepository actionLogRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        AssistantMessageRepository messageRepository,
-                       AssistantConversationRepository conversationRepository) {
+                       AssistantConversationRepository conversationRepository,
+                       com.cafeerp.user.UserSessionLogRepository sessionLogRepository,
+                       AssistantActionLogRepository actionLogRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
+        this.sessionLogRepository = sessionLogRepository;
+        this.actionLogRepository = actionLogRepository;
     }
 
     /**
@@ -228,6 +236,11 @@ public class UserService {
         // 1. Chat history — messages first (FK to conversation), then conversations.
         messageRepository.deleteByUser(user);
         conversationRepository.deleteByUser(user);
+
+        // 1b. Phase 4 audit tables (FK to cafe_user): the session trail and
+        // the AI action log are personal to the account, so they go too.
+        sessionLogRepository.deleteByUserId(id);
+        actionLogRepository.deleteByUserId(id);
 
         // 2. The account itself. No other table references cafe_user.
         userRepository.delete(user);

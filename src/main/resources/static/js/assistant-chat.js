@@ -334,6 +334,9 @@
             // The server tells us which thread the turn persisted into.
             if (reply.conversationId) currentConversationId = reply.conversationId;
             addAssistantMessageWithReveal(reply.text, reply.links || []);
+            if (reply.pendingAction) {
+                renderPendingActionCard(reply.pendingAction);
+            }
             // The turn is now durably persisted (server writes both sides
             // synchronously before responding) — re-sync the thread from
             // the server so the pane always matches the durable history,
@@ -346,6 +349,120 @@
             sendInFlight = false;
             showError('Failed to get a response. Please try again.');
             refreshHistoryLists();
+        });
+    }
+
+    // -------------------- agentic actions (Phase 4) --------------------
+
+    // Confirmation card: the AI proposed a write action that needs explicit
+    // user approval. Renders tool, human-readable description and the raw
+    // parameters, with Confirm / Cancel buttons wired to the audit-backed
+    // endpoints. Nothing executes until Confirm is pressed.
+    function renderPendingActionCard(action) {
+        var card = document.createElement('div');
+        card.className = 'assistant-action-card';
+        card.setAttribute('data-testid', 'assistant-action-card');
+        card.setAttribute('data-action-id', action.id);
+
+        var head = document.createElement('div');
+        head.className = 'assistant-action-head';
+        var title = document.createElement('span');
+        title.className = 'assistant-action-title';
+        title.textContent = 'Action needs your approval';
+        var tool = document.createElement('code');
+        tool.className = 'assistant-action-tool';
+        tool.textContent = action.tool;
+        head.appendChild(title);
+        head.appendChild(tool);
+        card.appendChild(head);
+
+        var desc = document.createElement('div');
+        desc.className = 'assistant-action-desc';
+        desc.textContent = action.description;
+        card.appendChild(desc);
+
+        var params = document.createElement('pre');
+        params.className = 'assistant-action-params';
+        try {
+            params.textContent = JSON.stringify(JSON.parse(action.paramsJson), null, 2);
+        } catch (e) {
+            params.textContent = action.paramsJson;
+        }
+        card.appendChild(params);
+
+        var btnRow = document.createElement('div');
+        btnRow.className = 'assistant-action-buttons';
+        var confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.className = 'assistant-action-confirm';
+        confirmBtn.setAttribute('data-testid', 'assistant-action-confirm');
+        confirmBtn.textContent = 'Confirm';
+        confirmBtn.addEventListener('click', function () {
+            resolvePendingAction(action.id, 'confirm', card);
+        });
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'assistant-action-cancel';
+        cancelBtn.setAttribute('data-testid', 'assistant-action-cancel');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', function () {
+            resolvePendingAction(action.id, 'cancel', card);
+        });
+        btnRow.appendChild(confirmBtn);
+        btnRow.appendChild(cancelBtn);
+        card.appendChild(btnRow);
+
+        messagesContainer.appendChild(card);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function resolvePendingAction(actionId, verb, card) {
+        var buttons = card.querySelectorAll('button');
+        buttons.forEach(function (b) { b.disabled = true; });
+        var body = currentConversationId
+            ? { conversationId: String(currentConversationId) } : {};
+        fetch('/assistant/actions/' + actionId + '/' + verb, {
+            method: 'POST',
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(body)
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('action ' + verb + ' failed');
+                return r.json();
+            })
+            .then(function (reply) {
+                if (reply.conversationId) currentConversationId = reply.conversationId;
+                card.classList.add('resolved');
+                var note = document.createElement('div');
+                note.className = 'assistant-action-resolved';
+                note.textContent = verb === 'confirm' ? 'Executed' : 'Cancelled';
+                card.appendChild(note);
+                loadConversationMessages();
+                refreshHistoryLists();
+            })
+            .catch(function () {
+                buttons.forEach(function (b) { b.disabled = false; });
+                showError('Could not ' + verb + ' the action. Please try again.');
+            });
+    }
+
+    // ------------------------- autonomy setting ------------------------
+
+    var agenticEnabled = !!document.getElementById('assistant-agentic-enabled');
+    var autonomySelect = document.getElementById('assistant-chat-autonomy');
+    if (agenticEnabled && autonomySelect) {
+        fetch('/assistant/autonomy')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (view) {
+                if (view && view.mode) autonomySelect.value = view.mode;
+            })
+            .catch(function () { /* keep default ALWAYS_CONFIRM */ });
+        autonomySelect.addEventListener('change', function () {
+            fetch('/assistant/autonomy', {
+                method: 'POST',
+                headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ mode: autonomySelect.value })
+            }).catch(function () { /* session default applies server-side */ });
         });
     }
 
