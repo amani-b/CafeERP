@@ -26,17 +26,124 @@
         <form th:action="@{/settings/timezone}" method="post" class="flex flex-col sm:flex-row items-start sm:items-end gap-3">
             <div class="flex-1 w-full">
                 <label class="field-label" for="timezone">IANA Timezone</label>
-                <input id="timezone" list="timezone-options" name="timezone" class="uk-input"
-                       th:value="${currentTimezone}" required
-                       placeholder="Africa/Addis_Ababa" autocomplete="off">
-                <datalist id="timezone-options">
-                    <option th:each="tz : ${availableTimezones}" th:value="${tz}" th:text="${tz}">Africa/Addis_Ababa</option>
-                </datalist>
+                <div class="tz-combo" id="tz-combo">
+                    <input id="timezone" name="timezone" class="uk-input" role="combobox"
+                           aria-expanded="false" aria-controls="tz-combo-list" aria-autocomplete="list"
+                           th:value="${currentTimezone}" required
+                           placeholder="Africa/Addis_Ababa" autocomplete="off" spellcheck="false">
+                    <!-- Custom dropdown: anchored to the input, scrollable, and
+                         filterable as you type. (The previous native browser
+                         suggestion popup was positioned by the OS, couldn't be
+                         styled, and appeared wherever it liked.) -->
+                    <div class="tz-combo-menu" id="tz-combo-list" role="listbox"
+                         aria-label="IANA timezones" hidden></div>
+                    <!-- Canonical list supplied server-side; rendered by the
+                         combobox script below. -->
+                    <script type="application/json" id="tz-options"
+                            th:text="${#strings.listJoin(availableTimezones, '|')}">[]</script>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary px-6 text-sm"><span class="btn-label">Save</span></button>
         </form>
     </section>
 </main>
+
+<script>
+(function () {
+    var combo = document.getElementById('tz-combo');
+    if (!combo) return;
+    var input = document.getElementById('timezone');
+    var menu = document.getElementById('tz-combo-list');
+    var raw = document.getElementById('tz-options');
+    var all = raw ? raw.textContent.split('|').filter(Boolean) : [];
+
+    var activeIndex = -1;
+
+    function render(filter) {
+        var q = (filter || '').trim().toLowerCase();
+        var items = all.filter(function (tz) { return !q || tz.toLowerCase().indexOf(q) !== -1; });
+        menu.innerHTML = '';
+        activeIndex = -1;
+        if (!items.length) {
+            var none = document.createElement('div');
+            none.className = 'tz-combo-empty';
+            none.textContent = 'No matching timezone';
+            menu.appendChild(none);
+        }
+        items.forEach(function (tz) {
+            var opt = document.createElement('div');
+            opt.className = 'tz-combo-option';
+            opt.setAttribute('role', 'option');
+            opt.setAttribute('aria-selected', tz === input.value ? 'true' : 'false');
+            if (tz === input.value) opt.classList.add('selected');
+            opt.textContent = tz;
+            opt.addEventListener('mousedown', function (e) {
+                // mousedown (not click) so the input keeps focus
+                e.preventDefault();
+                choose(tz);
+            });
+            menu.appendChild(opt);
+        });
+        menu.scrollTop = 0;
+    }
+
+    function choose(tz) {
+        input.value = tz;
+        close();
+        input.focus();
+    }
+
+    function open() {
+        render(input.value);
+        menu.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+    }
+
+    function close() {
+        menu.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        activeIndex = -1;
+    }
+
+    function moveActive(delta) {
+        var options = menu.querySelectorAll('.tz-combo-option');
+        if (!options.length) return;
+        activeIndex = (activeIndex + delta + options.length) % options.length;
+        options.forEach(function (o, i) { o.classList.toggle('active', i === activeIndex); });
+        options[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    input.addEventListener('focus', open);
+    input.addEventListener('input', open);
+    input.addEventListener('blur', function () {
+        // Delay so option mousedown (which prevents default) still lands.
+        setTimeout(close, 120);
+    });
+    input.addEventListener('keydown', function (e) {
+        if (menu.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            open();
+            e.preventDefault();
+            return;
+        }
+        if (e.key === 'ArrowDown') { moveActive(1); e.preventDefault(); }
+        else if (e.key === 'ArrowUp') { moveActive(-1); e.preventDefault(); }
+        else if (e.key === 'Enter') {
+            var options = menu.querySelectorAll('.tz-combo-option');
+            if (!menu.hidden && activeIndex >= 0 && options[activeIndex]) {
+                choose(options[activeIndex].textContent);
+                e.preventDefault();
+            } else if (!menu.hidden) {
+                close(); // let the form submit normally on a second Enter
+            }
+        } else if (e.key === 'Escape') {
+            close();
+        }
+    });
+    document.addEventListener('click', function (e) {
+        if (!combo.contains(e.target)) close();
+    });
+})();
+</script>
 
 <div th:replace="~{fragments/layout :: assistant-widget}"></div>
 </body>
