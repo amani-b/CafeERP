@@ -328,6 +328,24 @@ public class AssistantService {
     }
 
     /**
+     * Pending (awaiting-confirmation) actions for the given user to show in
+     * the chat thread. Rows belonging to another conversation are excluded —
+     * but rows with no conversation stamp (proposed before a thread existed)
+     * are shown so a confirmation card never silently disappears.
+     */
+    @Transactional(readOnly = true)
+    public List<AssistantReply.PendingActionView> getPendingActions(User user, Long conversationId) {
+        return actionLogRepository
+                .findByUserAndStatusOrderByIdDesc(user, AssistantActionLog.Status.PENDING_CONFIRMATION)
+                .stream()
+                .filter(a -> a.getConversationId() == null
+                        || a.getConversationId().equals(conversationId))
+                .map(a -> new AssistantReply.PendingActionView(
+                        a.getId(), a.getTool(), a.getDescription(), a.getParamsJson()))
+                .toList();
+    }
+
+    /**
      * Rule-based classifier to decide if a query should bypass AI and go straight
      * to the deterministic handler. Returns true only for narrow, unambiguous
      * cases where a fixed-format answer is objectively clearer/safer than generated text.
