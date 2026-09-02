@@ -670,11 +670,27 @@
     padding: 16px max(16px, calc((100% - 900px) / 2));
 }
 
-/* The composer keeps the same capped, centered column as the messages. */
+/* The composer floats as its own clean card above the beige backdrop —
+   lifted off the bottom edge, contoured by a hairline border and a soft
+   shadow so its figure reads clearly against the surrounding surface. */
 #assistant-chat-widget.fullscreen #assistant-chat-input-area {
     width: 100%;
     max-width: 900px;
-    margin: 0 auto;
+    margin: 0 auto 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    background: var(--paper);
+    box-shadow: 0 2px 6px rgba(10, 10, 10, .05),
+                0 12px 28px -12px rgba(10, 10, 10, .18);
+    transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+/* Gentle lift while the user is typing — an "alive, ready" cue. */
+#assistant-chat-widget.fullscreen #assistant-chat-input-area:focus-within {
+    border-color: var(--line-strong);
+    box-shadow: 0 2px 6px rgba(10, 10, 10, .06),
+                0 16px 34px -12px rgba(10, 10, 10, .24);
 }
 
 /* Paint the full-width backdrop in the message pane's warm beige so the
