@@ -51,6 +51,9 @@ class AssistantServiceTest {
     @Mock
     private DeterministicFallbackHandler fallbackHandler;
 
+    @Mock
+    private AssistantActionLogRepository actionLogRepository;
+
     // Real guard instance — it is stateless and pure-lexical, so exercising the
     // genuine classification logic here is more valuable than mocking it.
     private final AssistantAccessGuard accessGuard = new AssistantAccessGuard();
@@ -120,7 +123,7 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard);
+                fallbackHandler, accessGuard, actionLogRepository);
     }
 
     // ---------------------------------------------------------------
@@ -251,7 +254,7 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard);
+                fallbackHandler, accessGuard, actionLogRepository);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 
@@ -295,7 +298,7 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard);
+                fallbackHandler, accessGuard, actionLogRepository);
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 

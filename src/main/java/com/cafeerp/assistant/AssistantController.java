@@ -20,6 +20,8 @@ import com.cafeerp.assistant.AssistantService.AssistantReply;
 import com.cafeerp.user.User;
 import com.cafeerp.user.UserRepository;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/assistant")
 public class AssistantController {
@@ -47,7 +49,8 @@ public class AssistantController {
     @PostMapping("/chat")
     public ResponseEntity<AssistantReply> chat(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
 
         String message = body.get("message");
         if (message == null || message.isBlank()) {
@@ -70,7 +73,8 @@ public class AssistantController {
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database"));
 
-            AssistantReply reply = assistantService.processMessage(user, message, conversationId);
+            AssistantReply reply = assistantService.processMessage(
+                    user, message, conversationId, autonomyOf(request));
             return ResponseEntity.ok(reply);
 
         } catch (Exception e) {
@@ -196,6 +200,97 @@ public class AssistantController {
 
         User user = requireUser(userDetails);
         return ResponseEntity.ok(assistantService.getConversationMessages(user, id));
+    }
+
+    // ---------------------------------------------------------------
+    //  Phase 4 — agentic autonomy setting + action confirm/cancel
+    // ---------------------------------------------------------------
+
+    /** Session attribute holding the user's autonomy choice; resets per session. */
+    static final String AUTONOMY_SESSION_KEY = "assistant.autonomy";
+
+    public record AutonomyView(String mode) {}
+
+    /**
+     * GET /assistant/autonomy — the current session's autonomy mode. Always
+     * {@code ALWAYS_CONFIRM} unless the user changed it this session.
+     */
+    @GetMapping("/autonomy")
+    public ResponseEntity<AutonomyView> getAutonomy(HttpServletRequest request) {
+        return ResponseEntity.ok(new AutonomyView(autonomyOf(request).name()));
+    }
+
+    /**
+     * POST /assistant/autonomy — set this session's autonomy mode. Accepts
+     * {@code ALWAYS_CONFIRM} (default) or {@code AUTO_LOW_RISK}. The choice is
+     * deliberately session-scoped: a fresh login always starts at
+     * ALWAYS_CONFIRM.
+     */
+    @PostMapping("/autonomy")
+    public ResponseEntity<AutonomyView> setAutonomy(@RequestBody Map<String, String> body,
+                                                    HttpServletRequest request) {
+        AgenticAutonomy mode = AgenticAutonomy.parse(body.get("mode"));
+        request.getSession(true).setAttribute(AUTONOMY_SESSION_KEY, mode);
+        return ResponseEntity.ok(new AutonomyView(mode.name()));
+    }
+
+    /** Record-view of one pending action for the confirmation card. */
+    public record ActionConfirmationView(Long id, String tool, String description) {}
+
+    /**
+     * POST /assistant/actions/{id}/confirm — approve a pending AI-proposed
+     * action. Only the proposing user, and only while still pending.
+     */
+    @PostMapping("/actions/{id}/confirm")
+    public ResponseEntity<?> confirmAction(@AuthenticationPrincipal UserDetails userDetails,
+                                           @PathVariable Long id,
+                                           @RequestBody Map<String, String> body,
+                                           HttpServletRequest request) {
+        User user = requireUser(userDetails);
+        Long conversationId = parseConversationId(body.get("conversationId"));
+        try {
+            AssistantReply reply = assistantService.confirmPendingAction(user, id, conversationId);
+            return ResponseEntity.ok(reply);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * POST /assistant/actions/{id}/cancel — decline a pending AI-proposed
+     * action without executing anything.
+     */
+    @PostMapping("/actions/{id}/cancel")
+    public ResponseEntity<?> cancelAction(@AuthenticationPrincipal UserDetails userDetails,
+                                          @PathVariable Long id,
+                                          @RequestBody Map<String, String> body) {
+        User user = requireUser(userDetails);
+        Long conversationId = parseConversationId(body.get("conversationId"));
+        try {
+            AssistantReply reply = assistantService.cancelPendingAction(user, id, conversationId);
+            return ResponseEntity.ok(reply);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    private Long parseConversationId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** The session's autonomy mode; ALWAYS_CONFIRM when unset (new session). */
+    private AgenticAutonomy autonomyOf(HttpServletRequest request) {
+        Object value = request.getSession(false) != null
+                ? request.getSession(false).getAttribute(AUTONOMY_SESSION_KEY)
+                : null;
+        return value instanceof AgenticAutonomy mode ? mode : AgenticAutonomy.ALWAYS_CONFIRM;
     }
 
     private User requireUser(UserDetails userDetails) {

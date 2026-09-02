@@ -659,3 +659,112 @@
 #assistant-chat-widget.fullscreen #assistant-chat-panel.open { animation: none; }
 
 body.assistant-chat-fullscreen-open { overflow: hidden; }
+
+/* ─── Phase 4: agentic action confirmation card ─────────────────────
+   Rendered in the message stream when the AI proposes a write action.
+   Uses the shared app.css tokens (--ink/--paper/--surface/--radius/
+   --ease/--dur); motion collapses under prefers-reduced-motion. */
+.assistant-action-card {
+    margin: 10px 0 2px;
+    padding: 12px 14px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    border-left: 4px solid var(--ink);
+    border-radius: var(--radius);
+    max-width: 88%;
+}
+
+.assistant-action-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.assistant-action-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink);
+}
+
+.assistant-action-tool {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 2px 7px;
+    background: var(--surface-2);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+}
+
+.assistant-action-desc {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+}
+
+.assistant-action-params {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.assistant-action-buttons { display: flex; gap: 8px; }
+
+.assistant-action-confirm,
+.assistant-action-cancel {
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--ink);
+    transition: background-color var(--dur) var(--ease),
+                color var(--dur) var(--ease),
+                opacity var(--dur) var(--ease);
+}
+
+.assistant-action-confirm { background: var(--ink); color: var(--paper); }
+.assistant-action-confirm:hover:not(:disabled) { background: var(--ink-soft); }
+.assistant-action-cancel { background: var(--paper); color: var(--ink); }
+.assistant-action-cancel:hover:not(:disabled) { background: var(--surface-2); }
+.assistant-action-confirm:disabled,
+.assistant-action-cancel:disabled { opacity: .45; cursor: default; }
+
+.assistant-action-card.resolved { opacity: .6; }
+
+.assistant-action-resolved {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink-soft);
+}
+
+/* ─── Phase 4: autonomy selector (header, agentic users only) ─── */
+.assistant-chat-autonomy { display: flex; align-items: center; }
+
+.assistant-chat-autonomy select {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: box-shadow var(--dur) var(--ease);
+}
+
+.assistant-chat-autonomy select:focus-visible { box-shadow: 0 0 0 2px var(--ink); }
+
