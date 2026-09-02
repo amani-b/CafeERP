@@ -659,9 +659,19 @@
 #assistant-chat-widget.fullscreen #assistant-chat-panel.open { animation: none; }
 
 /* ─── Fullscreen tightness — keep the chat content comfortable ──
-   Stretching the message pane across a whole desktop display makes
-   bubbles and the composer absurdly wide. Cap the readable column. */
+   The scroller itself stays FULL width so its scrollbar hugs the
+   window's right edge; the readable content is capped from inside
+   via symmetric padding, so the beige backdrop blends seamlessly. */
 #assistant-chat-widget.fullscreen #assistant-chat-main {
+    width: 100%;
+}
+
+#assistant-chat-widget.fullscreen #assistant-chat-messages {
+    padding: 16px max(16px, calc((100% - 900px) / 2));
+}
+
+/* The composer keeps the same capped, centered column as the messages. */
+#assistant-chat-widget.fullscreen #assistant-chat-input-area {
     width: 100%;
     max-width: 900px;
     margin: 0 auto;
@@ -681,6 +691,12 @@
 
 #assistant-chat-widget.fullscreen .assistant-chat-msg {
     max-width: min(88%, 720px);
+}
+
+/* User queries (the black bubbles): noticeably tighter than assistant
+   cards in fullscreen — a question should never sprawl across the pane. */
+#assistant-chat-widget.fullscreen .assistant-chat-msg.user {
+    max-width: min(72%, 460px);
 }
 
 body.assistant-chat-fullscreen-open { overflow: hidden; }
