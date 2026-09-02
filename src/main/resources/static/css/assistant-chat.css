@@ -667,6 +667,18 @@
     margin: 0 auto;
 }
 
+/* Paint the full-width backdrop in the message pane's warm beige so the
+   area outside the capped column blends seamlessly with the chat —
+   otherwise the leftover margins show the panel's white paper tone and
+   read as a bleached-out band. */
+#assistant-chat-widget.fullscreen #assistant-chat-body {
+    background: var(--surface);
+}
+
+#assistant-chat-widget.fullscreen #assistant-chat-main {
+    background: transparent;
+}
+
 #assistant-chat-widget.fullscreen .assistant-chat-msg {
     max-width: min(88%, 720px);
 }
