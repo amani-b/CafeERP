@@ -26,7 +26,7 @@ public class AssistantService {
 
     private static final Logger log = LoggerFactory.getLogger(AssistantService.class);
 
-    private static final int MAX_TOOL_ROUNDS = 12;
+    private static final int MAX_TOOL_ROUNDS = 16;
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
     private final AssistantMessageRepository messageRepository;
@@ -451,11 +451,32 @@ public class AssistantService {
 
             // Execute each tool call — with validation against allowed tool names
             boolean hadValidCall = false;
+            int toolCallIndex = 0;
             for (Map<String, Object> tc : toolCalls) {
                 String id = (String) tc.get("id");
                 Map<String, Object> function = (Map<String, Object>) tc.get("function");
                 String name = (String) function.get("name");
                 String args = (String) function.get("arguments");
+
+                // Deterministic left-to-right execution: even though the
+                // system prompt demands one call at a time, a provider may
+                // still batch several tool calls into one response. Only the
+                // FIRST call in a batch runs now; the rest are deferred so
+                // the model re-issues them one at a time — preserving the
+                // order the user listed their tasks in.
+                if (++toolCallIndex > 1) {
+                    log.debug("Deferring tool call #{} ('{}') in a {}-call batch to enforce sequential order",
+                            toolCallIndex, name, toolCalls.size());
+                    Map<String, Object> deferredToolMessage = new HashMap<>();
+                    deferredToolMessage.put("role", "tool");
+                    deferredToolMessage.put("tool_call_id", id);
+                    deferredToolMessage.put("content",
+                            "Deferred. Tools run strictly ONE at a time, in the order the user listed their "
+                                    + "tasks (left to right). Re-issue this exact call by itself in your next "
+                                    + "response, after the previous call's result has been handled.");
+                    msgs.add(deferredToolMessage);
+                    continue;
+                }
 
                 // SECURITY: Validate tool name against the request's allowed set
                 if (!allowedToolNames.contains(name)) {
@@ -508,9 +529,10 @@ public class AssistantService {
                         pendingToolMessage.put("tool_call_id", id);
                         pendingToolMessage.put("content",
                                 "Queued for user confirmation (action id " + pending.getId()
-                                        + "). It has NOT been executed yet. Continue with any "
-                                        + "remaining independent tasks; do NOT repeat this call "
-                                        + "and do NOT make further calls that depend on its outcome.");
+                                        + "). It has NOT been executed yet. Continue with the user's remaining "
+                                        + "tasks ONE AT A TIME (next task = next tool call in your next response); "
+                                        + "do NOT repeat this call and do NOT make further calls that depend on its "
+                                        + "outcome.");
                         msgs.add(pendingToolMessage);
                         continue;
                     }
@@ -755,13 +777,14 @@ public class AssistantService {
                     + "user must approve in the chat UI, so tell them plainly what you are about to do and why. "
                     + "Inventory updates may run automatically depending on the user's autonomy setting. You must "
                     + "NEVER attempt to delete users or data — those actions do not exist for you.\n"
-                    + "Task ordering (IMPORTANT): when a message asks for several tasks, handle them in EXACTLY the "
-                    + "order the user listed them — the FIRST task they mentioned must be acted on FIRST, and each "
-                    + "task gets its own tool call so it gets its own confirmation card in the chat. NEVER reorder "
-                    + "the tasks or start from the last one. You may issue several tool calls together to cover all "
-                    + "the requested tasks in that same order — the user will confirm each card in the chat. If a "
+                    + "Task ordering (CRITICAL): when a message asks for several tasks, handle them in EXACTLY the "
+                    + "order the user wrote them — read their request left to right; the FIRST task they mentioned "
+                    + "must be acted on FIRST, the second next, and so on. To guarantee this, issue ONE tool call "
+                    + "per response and WAIT for its result before issuing the next call. NEVER batch several tool "
+                    + "calls into a single response, NEVER reorder the tasks, and NEVER start from the last one. "
+                    + "Each task gets its own tool call so it gets its own confirmation card in the chat. If a "
                     + "later task DEPENDS on an earlier one that is still awaiting the user's confirmation, do not "
-                    + "guess its outcome: queue what you can and tell the user to confirm the earlier card first.\n"
+                    + "guess its outcome: tell the user to confirm the earlier card first.\n"
                     : "")
                 + formattingRules;
         };

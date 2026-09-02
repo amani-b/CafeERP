@@ -371,7 +371,7 @@
     resize: none;
     border: 1px solid var(--line-strong);
     border-radius: 999px;
-    padding: 10px 15px;
+    padding: 10px 20px; /* wide horizontal inset: keeps wrapped lines clear of the pill curve */
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.4;
@@ -627,7 +627,7 @@
 }
 
 /* History button is pointless in fullscreen (sidebar is already open). */
-#assistant-chat-widget.fullscreen:not(.sidebar-collapsed) #assistant-chat-history-btn { display: none; }
+#assistant-chat-widget.fullscreen #assistant-chat-history-btn { display: none; }
 
 /* History sidebar toggle — fullscreen only (compact uses the overlay). */
 #assistant-chat-sidebar-toggle { display: none; }
@@ -657,6 +657,19 @@
 /* Kill the pop-in animation when toggling fullscreen — it's a resize,
    not an appearance. */
 #assistant-chat-widget.fullscreen #assistant-chat-panel.open { animation: none; }
+
+/* ─── Fullscreen tightness — keep the chat content comfortable ──
+   Stretching the message pane across a whole desktop display makes
+   bubbles and the composer absurdly wide. Cap the readable column. */
+#assistant-chat-widget.fullscreen #assistant-chat-main {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+#assistant-chat-widget.fullscreen .assistant-chat-msg {
+    max-width: min(88%, 720px);
+}
 
 body.assistant-chat-fullscreen-open { overflow: hidden; }
 

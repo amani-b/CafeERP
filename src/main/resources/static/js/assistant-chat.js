@@ -513,6 +513,11 @@
 
     function closePanel() {
         panelOpen = false;
+        // Exit fullscreen first: while .fullscreen is on, CSS keeps the
+        // panel displayed regardless of the .open class, so removing
+        // .open alone would leave a "closed" panel covering the screen
+        // (observed on both desktop and mobile).
+        if (fullscreen) setFullscreen(false);
         panel.classList.remove('open');
         closeHistoryOverlay();
     }
