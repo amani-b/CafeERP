@@ -3,6 +3,9 @@ package com.cafeerp.assistant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -49,7 +52,7 @@ public class AssistantTitleService {
     static final int MAX_TITLE_LENGTH = 60;
 
     /** Bounded backfill batch per run — predictable provider spend. */
-    static final int BACKFILL_BATCH = 20;
+    static final int BACKFILL_BATCH = 40;
 
     private static final String SYSTEM_PROMPT =
             "You name cafe chat threads. Given a customer's question and the assistant's answer, "
@@ -85,23 +88,38 @@ public class AssistantTitleService {
         this.objectMapper = objectMapper;
     }
 
+    /** Title generations in flight, by conversation id — lets the SSE
+     *  stream hold the reply just long enough to deliver the fresh title. */
+    private final ConcurrentHashMap<Long, CompletableFuture<Boolean>> pendingTitles =
+            new ConcurrentHashMap<>();
+
     /**
      * Live hook: called after an AI turn persisted its reply. Generates a
      * summary title only when the conversation still carries its derived
      * placeholder — i.e. exactly once per conversation's lifetime.
+     *
+     * @return future completing (on the title thread) with true when a new
+     *         title was generated and applied; the SSE stream awaits it so
+     *         the sidebar can update within the same response.
      */
-    public void maybeGenerateTitleAsync(AssistantConversation conversation,
-                                        String userMessage, String replyText) {
+    public CompletableFuture<Boolean> maybeGenerateTitleAsync(AssistantConversation conversation,
+                                                              String userMessage, String replyText) {
         if (conversation == null || conversation.getId() == null
                 || userMessage == null || userMessage.isBlank()) {
-            return;
+            return CompletableFuture.completedFuture(false);
         }
         String currentTitle = conversation.getTitle();
         if (currentTitle == null || !currentTitle.equals(AssistantConversation.deriveTitle(userMessage))) {
-            return; // already summarized (or user-titled) — leave it alone
+            return CompletableFuture.completedFuture(false); // already summarized
         }
         Long conversationId = conversation.getId();
-        Runnable job = () -> generateTitle(conversationId, userMessage, replyText);
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        pendingTitles.put(conversationId, future);
+        Runnable job = () -> {
+            boolean applied = generateTitle(conversationId, userMessage, replyText);
+            future.complete(applied);
+            pendingTitles.remove(conversationId);
+        };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             // The reply must be visible to the title thread — run after commit.
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -113,18 +131,43 @@ public class AssistantTitleService {
         } else {
             titleExecutor.execute(job);
         }
+        return future;
+    }
+
+    /**
+     * The in-flight (or already-completed) title generation for a
+     * conversation, or an already-completed "nothing" future when this turn
+     * did not trigger one.
+     */
+    public CompletableFuture<Boolean> titleFutureFor(Long conversationId) {
+        if (conversationId == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return pendingTitles.getOrDefault(conversationId,
+                CompletableFuture.completedFuture(false));
+    }
+
+    /** The conversation's current title, if it exists. */
+    public Optional<String> latestTitleOf(Long conversationId) {
+        if (conversationId == null) {
+            return Optional.empty();
+        }
+        return conversationRepository.findById(conversationId)
+                .map(AssistantConversation::getTitle)
+                .filter(title -> title != null && !title.isBlank());
     }
 
     /**
      * Backfill for all previous chatrooms: finds conversations still carrying
-     * their derived placeholder title and summarizes them. Runs 45s after
-     * startup, then hourly; each run handles at most {@link #BACKFILL_BATCH}
+     * their derived placeholder title and summarizes them. Runs 5s after
+     * startup (so legacy threads get real names almost immediately), then
+     * every 5 minutes; each run handles at most {@link #BACKFILL_BATCH}
      * conversations so provider cost is bounded, and successive runs mop up
      * the rest.
      *
      * @return number of conversations given a summary title this run
      */
-    @Scheduled(fixedDelay = 3_600_000, initialDelay = 45_000)
+    @Scheduled(fixedDelay = 300_000, initialDelay = 5_000)
     public int backfillTitles() {
         int updated = 0;
         try {

@@ -52,6 +52,7 @@ public class AssistantStreamController {
     private static final long STREAM_TIMEOUT_MS = Duration.ofMinutes(3).toMillis();
 
     private final AssistantService assistantService;
+    private final AssistantTitleService titleService;
     private final UserRepository userRepository;
 
     /**
@@ -69,8 +70,10 @@ public class AssistantStreamController {
             });
 
     public AssistantStreamController(AssistantService assistantService,
+                                     AssistantTitleService titleService,
                                      UserRepository userRepository) {
         this.assistantService = assistantService;
+        this.titleService = titleService;
         this.userRepository = userRepository;
     }
 
@@ -119,6 +122,32 @@ public class AssistantStreamController {
                             message, conversationId, autonomy, trace);
                 };
                 emitter.send(SseEmitter.event().name("reply").data(reply, MediaType.APPLICATION_JSON));
+                // Phase 5 sidebar polish: when this turn triggered the
+                // conversation's first summary title, hold the stream open
+                // just long enough to deliver it, so the sidebar updates
+                // immediately after the reply — no wait for the next poll.
+                if (reply.conversationId() != null) {
+                    try {
+                        boolean generated = titleService
+                                .titleFutureFor(reply.conversationId())
+                                .get(10, TimeUnit.SECONDS);
+                        if (generated) {
+                            titleService.latestTitleOf(reply.conversationId())
+                                    .ifPresent(title -> {
+                                        try {
+                                            emitter.send(SseEmitter.event().name("title")
+                                                    .data(Map.of("conversationId",
+                                                            reply.conversationId(), "title", title),
+                                                            MediaType.APPLICATION_JSON));
+                                        } catch (Exception ignore) {
+                                            // sidebar simply refreshes later
+                                        }
+                                    });
+                        }
+                    } catch (Exception ignore) {
+                        // title still cooking — sidebar picks it up on next refresh
+                    }
+                }
                 emitter.complete();
             } catch (Exception e) {
                 log.error("Streaming chat turn failed (mode={}): {}", mode, e.getMessage(), e);
