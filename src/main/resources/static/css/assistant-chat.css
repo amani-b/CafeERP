@@ -977,3 +977,115 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
     .msg-regen-panel { max-width: 100%; }
 }
 
+
+/* ================================================================
+   Phase 5 — background transparency: live trace ("what the AI is
+   doing"). Rendered by the shared AssistantTrace component
+   (assistant-trace.js) while a streamed turn is in flight; it
+   collapses into an expandable <details> once the reply lands.
+   All styling uses the shared app.css tokens; transitions respect
+   prefers-reduced-motion (which also zeroes --dur globally).
+   ================================================================ */
+
+.assistant-trace {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 2px 0 10px;
+}
+
+.assistant-trace-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    /* Appear: fade + tiny rise, then settle (instant under reduced motion). */
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease),
+                color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.assistant-trace-entry.is-visible { opacity: 1; transform: none; }
+
+.assistant-trace-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted-2);
+}
+
+/* Active step: pulsing ink dot + darker text. */
+.assistant-trace-entry.is-active { color: var(--ink); border-color: var(--line-strong); }
+.assistant-trace-entry.is-active .assistant-trace-dot {
+    background: var(--ink);
+    animation: assistant-trace-pulse 1.2s var(--ease) infinite;
+}
+
+/* Completed step: settles back to quiet muted ink. */
+.assistant-trace-entry.is-done { color: var(--muted-2); }
+
+/* Failed step: warm red-ish signal stays within the ink/paper palette. */
+.assistant-trace-entry.is-failed { color: var(--ink); border-color: var(--line-strong); }
+.assistant-trace-entry.is-failed .assistant-trace-dot { background: var(--ink); }
+
+@keyframes assistant-trace-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .35; transform: scale(.7); }
+}
+
+/* Collapsed affordance shown after the reply replaces the live trace. */
+.assistant-trace.is-collapsed { margin: 0 0 8px; }
+
+.assistant-trace-collapsed { font-size: 12.5px; }
+
+.assistant-trace-collapsed summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: var(--muted-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 4px 10px;
+    list-style: none;
+    transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+.assistant-trace-collapsed summary::-webkit-details-marker { display: none; }
+.assistant-trace-collapsed summary::before {
+    content: '\203A'; /* single right angle quote — rotates when open */
+    font-size: 14px;
+    line-height: 1;
+    transform: rotate(90deg);
+    transition: transform var(--dur) var(--ease);
+}
+.assistant-trace-collapsed[open] summary::before { transform: rotate(-90deg); }
+.assistant-trace-collapsed summary:hover { color: var(--ink); background: var(--surface-2); }
+
+.assistant-trace-collapsed .assistant-trace-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assistant-trace-entry,
+    .assistant-trace-entry .assistant-trace-dot,
+    .assistant-trace-collapsed summary,
+    .assistant-trace-collapsed summary::before {
+        animation: none;
+        transition: none;
+        opacity: 1;
+        transform: none;
+    }
+}

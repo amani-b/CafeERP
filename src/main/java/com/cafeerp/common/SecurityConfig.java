@@ -44,7 +44,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.ignoringRequestMatchers(
-                    "/assistant/chat", "/assistant/regenerate", "/assistant/edit"))
+                    "/assistant/chat", "/assistant/regenerate", "/assistant/edit",
+                    "/assistant/chat/stream"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health",
                         "/build-version").permitAll()
