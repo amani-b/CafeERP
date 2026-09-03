@@ -140,10 +140,15 @@ public class AssistantService {
      * relevant to the original query. Agentic queries re-run the tool loop, so
      * a regeneration can fetch fresh data rather than rephrase the old answer.
      */
+    @Transactional
     public AssistantReply regenerateMessage(User user, String originalMessage, String feedback,
                                             Long conversationId, AgenticAutonomy autonomy) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
+        // The user is replacing the AI's previous answer(s): delete the
+        // assistant replies that the original query produced (the query itself
+        // STAYS), then generate a fresh one.
+        deleteRepliesToOriginalTurn(conversation, originalMessage);
         AssistantReply reply = processMessageInConversation(user, originalMessage, conversation, mode,
                 new Regeneration(feedback));
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
@@ -168,6 +173,37 @@ public class AssistantService {
         deleteOriginalTurn(conversation, originalMessage);
         AssistantReply reply = processMessageInConversation(user, editedMessage, conversation, mode, null);
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
+    }
+
+    /**
+     * Removes the assistant replies that directly followed the LAST user
+     * message matching {@code originalMessage} — the query itself is kept.
+     * Stops at the next user message, so later turns are untouched.
+     */
+    private void deleteRepliesToOriginalTurn(AssistantConversation conversation, String originalMessage) {
+        if (conversation.getId() == null || originalMessage == null || originalMessage.isBlank()) {
+            return;
+        }
+        List<AssistantMessage> messages =
+                messageRepository.findByConversationOrderByCreatedAtAscIdAsc(conversation);
+        int anchor = -1;
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            AssistantMessage m = messages.get(i);
+            if (m.getRole() == AssistantMessageRole.USER && originalMessage.equals(m.getContent())) {
+                anchor = i;
+                break;
+            }
+        }
+        if (anchor < 0) {
+            return;
+        }
+        for (int i = anchor + 1; i < messages.size(); i++) {
+            AssistantMessage m = messages.get(i);
+            if (m.getRole() == AssistantMessageRole.USER) {
+                break; // a later turn begins — stop deleting
+            }
+            messageRepository.delete(m);
+        }
     }
 
     /**

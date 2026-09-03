@@ -894,8 +894,10 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
 .msg-action-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ink); }
 .msg-action-btn.copied { color: var(--ink); }
 
-.assistant-chat-msg.user .msg-action-btn { color: rgba(255, 255, 255, .75); }
-.assistant-chat-msg.user .msg-action-btn:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+/* User-message action icons sit BELOW the black bubble (on the beige
+   background) — they must be ink-colored to be visible there. */
+.assistant-chat-msg.user .msg-action-btn { color: var(--ink-soft); }
+.assistant-chat-msg.user .msg-action-btn:hover { background: var(--surface-2); color: var(--ink); }
 
 /* Regeneration tracker — "2/2", "3/3", … under the reply */
 .msg-gen {
