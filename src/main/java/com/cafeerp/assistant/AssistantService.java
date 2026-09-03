@@ -132,15 +132,49 @@ public class AssistantService {
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
     }
 
+    /**
+     * Regeneration variant: the user disliked an assistant reply and asked for
+     * a new one. The original query is ALREADY in the conversation history, so
+     * it is NOT persisted again — instead the model is explicitly told this is
+     * a regeneration (with optional user feedback) and must stay true and
+     * relevant to the original query. Agentic queries re-run the tool loop, so
+     * a regeneration can fetch fresh data rather than rephrase the old answer.
+     */
+    public AssistantReply regenerateMessage(User user, String originalMessage, String feedback,
+                                            Long conversationId, AgenticAutonomy autonomy) {
+        AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
+        AssistantConversation conversation = resolveConversation(user, conversationId);
+        AssistantReply reply = processMessageInConversation(user, originalMessage, conversation, mode,
+                new Regeneration(feedback));
+        return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
+    }
+
+    /** Regeneration context: optional user feedback on the previous attempt. */
+    public record Regeneration(String feedback) {}
+
     private AssistantReply processMessageInConversation(User user, String userMessage,
                                                         AssistantConversation conversation,
                                                         AgenticAutonomy autonomy) {
+        return processMessageInConversation(user, userMessage, conversation, autonomy, null);
+    }
+
+    private AssistantReply processMessageInConversation(User user, String userMessage,
+                                                        AssistantConversation conversation,
+                                                        AgenticAutonomy autonomy,
+                                                        Regeneration regen) {
+        boolean regenerating = regen != null;
+
         // 1. Persist the user's message — synchronously, in its own committed
         //    transaction, BEFORE any provider work. Chat logging is never
         //    deferred/async, so the turn is queryable the moment this method
         //    returns (and even if a provider later hangs or fails).
-        saveMessage(user, AssistantMessageRole.USER, userMessage, conversation);
-        touchConversation(conversation, userMessage);
+        //    Regeneration skips this: the original query is already persisted.
+        if (!regenerating) {
+            saveMessage(user, AssistantMessageRole.USER, userMessage, conversation);
+            touchConversation(conversation, userMessage);
+        } else {
+            touchConversation(conversation, null);
+        }
 
         // 1b. Hard access gate — structural restriction for sensitive topics.
         AssistantAccessGuard.Decision decision = accessGuard.check(user.getRole(), userMessage);
@@ -157,7 +191,10 @@ public class AssistantService {
         //      deterministically because a fixed-format answer is objectively clearer
         //      and safer than a generated one.
         //    These rules are intentionally narrow; everything else goes to AI.
-        if (shouldRouteToDeterministicFirst(userMessage, user)) {
+        //    REGENERATION bypasses this shortcut on purpose: the user is asking for a
+        //    different (better) answer, and the deterministic handler would return the
+        //    exact same fixed text — feedback could never change anything.
+        if (!regenerating && shouldRouteToDeterministicFirst(userMessage, user)) {
             log.debug("Query matched canonical pattern; routing to deterministic handler first for user '{}'", user.getUsername());
             AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
             if (tier2Reply != null) {
@@ -192,6 +229,27 @@ public class AssistantService {
             m.put("role", msg.getRole() == AssistantMessageRole.USER ? "user" : "assistant");
             m.put("content", msg.getContent());
             messages.add(m);
+        }
+
+        // 4b. Regeneration instruction — an ephemeral (non-persisted) user-role
+        //     turn that tells the model this is a redo of its previous answer.
+        //     Agentic queries re-run the tool loop above, so the regeneration can
+        //     pull fresh data; the instruction keeps the answer anchored to the
+        //     ORIGINAL query instead of drifting into meta-commentary.
+        if (regenerating) {
+            String feedback = regen.feedback();
+            String instruction = "The user has asked you to REGENERATE your previous response to their "
+                    + "original query above (their last message). This is a redo, not a new question — "
+                    + "stay true and relevant to that original query and answer it again. ";
+            if (feedback != null && !feedback.isBlank()) {
+                instruction += "The user gave this feedback on your previous response — take it into "
+                        + "account while staying on-topic: \"" + feedback.trim() + "\" ";
+            } else {
+                instruction += "No specific feedback was given — aim for a better, more helpful and "
+                        + "more accurate response than your previous attempt. ";
+            }
+            instruction += "Do not mention that you are regenerating; simply answer the original query.";
+            messages.add(Map.of("role", "user", "content", instruction));
         }
 
         // 5. Determine the user's permission-scoped tools (agentic path)
