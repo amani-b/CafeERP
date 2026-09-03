@@ -425,10 +425,17 @@ public class AssistantService {
      * and returns it as the reply.
      */
     public AssistantReply confirmPendingAction(User user, Long actionId, Long conversationId) {
+        return confirmPendingAction(user, actionId, conversationId, AssistantTraceListener.NOOP);
+    }
+
+    /** Trace-aware confirm variant (Phase 5): streams progress into the card. */
+    public AssistantReply confirmPendingAction(User user, Long actionId, Long conversationId,
+                                               AssistantTraceListener trace) {
         AssistantActionLog action = loadOwnPendingAction(user, actionId);
         AssistantConversation conversation = resolveConversation(user,
                 action.getConversationId() != null ? action.getConversationId() : conversationId);
 
+        trace.onStep("Running: " + action.getDescription(), "start");
         String result;
         try {
             result = toolRegistry.execute(action.getTool(), action.getParamsJson(), user);
@@ -437,6 +444,10 @@ public class AssistantService {
         } catch (Exception e) {
             result = "Permission denied: you are not allowed to use " + action.getTool() + ".";
             action.setStatus(AssistantActionLog.Status.FAILED);
+            trace.onStep("Couldn't run it — permission denied.", "fail");
+        }
+        if (AssistantActionLog.Status.EXECUTED.equals(action.getStatus())) {
+            trace.onStep(stepDoneText(result), "done");
         }
         action.setResultSummary(result);
         actionLogRepository.save(action);
@@ -457,14 +468,22 @@ public class AssistantService {
      * and declined.
      */
     public AssistantReply cancelPendingAction(User user, Long actionId, Long conversationId) {
+        return cancelPendingAction(user, actionId, conversationId, AssistantTraceListener.NOOP);
+    }
+
+    /** Trace-aware cancel variant (Phase 5): streams progress into the card. */
+    public AssistantReply cancelPendingAction(User user, Long actionId, Long conversationId,
+                                              AssistantTraceListener trace) {
         AssistantActionLog action = loadOwnPendingAction(user, actionId);
         AssistantConversation conversation = resolveConversation(user,
                 action.getConversationId() != null ? action.getConversationId() : conversationId);
 
+        trace.onStep("Cancelling: " + action.getDescription(), "start");
         action.setStatus(AssistantActionLog.Status.CANCELLED);
         actionLogRepository.save(action);
         log.info("AI action cancelled by user '{}': tool={}, actionId={}",
                 user.getUsername(), action.getTool(), action.getId());
+        trace.onStep("Cancelled — nothing was changed.", "done");
 
         String text = "Cancelled — nothing was changed. (" + action.getDescription() + ")";
         saveMessage(user, AssistantMessageRole.ASSISTANT, text, conversation);
