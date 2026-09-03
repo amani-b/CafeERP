@@ -24,6 +24,7 @@
     var currentConversationId = null;
     var sendInFlight = false;    // guards the history-render race
     var pendingHistoryRefresh = false;
+    var pendingEditOriginal = null; // set while the user is editing a previous query
 
     // Shared history-list mount points: the fullscreen sidebar and the
     // compact overlay. ONE renderer feeds both — no duplicated logic.
@@ -106,6 +107,9 @@
         // Assistant replies: copy / regenerate — always visible.
         var actions = document.createElement('div');
         actions.className = 'msg-actions';
+        var actionsInner = document.createElement('div');
+        actionsInner.className = 'msg-actions-inner';
+        actions.appendChild(actionsInner);
         if (role === 'user') {
             var resend = makeIconButton('resend', 'Resend this message');
             resend.addEventListener('click', function () {
@@ -120,14 +124,41 @@
             });
             var edit = makeIconButton('edit', 'Edit message');
             edit.addEventListener('click', function () {
-                inputEl.value = textDiv.textContent;
+                pendingEditOriginal = textDiv.textContent;
+                inputEl.value = pendingEditOriginal;
                 inputEl.style.height = 'auto';
                 inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+                inputEl.classList.add('editing');
+                inputEl.placeholder = 'Editing your message\u2026 (Esc to cancel)';
                 inputEl.focus();
             });
-            actions.appendChild(resend);
-            actions.appendChild(copyU);
-            actions.appendChild(edit);
+            actionsInner.appendChild(resend);
+            actionsInner.appendChild(copyU);
+            actionsInner.appendChild(edit);
+
+            // Hover-driven reveal: the actions drop below the bubble with a
+            // slide animation (no space is reserved for them beforehand) and
+            // collapse away again 10 seconds after the hover started — as if
+            // they were never there.
+            var hideTimer = null;
+            div.addEventListener('mouseenter', function () {
+                if (hideTimer) clearTimeout(hideTimer);
+                div.classList.add('actions-open');
+                hideTimer = setTimeout(function () {
+                    div.classList.remove('actions-open');
+                    hideTimer = null;
+                }, 10000);
+            });
+            // Touch: tap the bubble toggles the row with the same 10s window.
+            div.addEventListener('click', function () {
+                if (div.classList.contains('actions-open')) return;
+                if (hideTimer) clearTimeout(hideTimer);
+                div.classList.add('actions-open');
+                hideTimer = setTimeout(function () {
+                    div.classList.remove('actions-open');
+                    hideTimer = null;
+                }, 10000);
+            });
         } else {
             var copyA = makeIconButton('copy', 'Copy');
             copyA.addEventListener('click', function () {
@@ -135,8 +166,10 @@
             });
             var regen = makeIconButton('regenerate', 'Regenerate response');
             regen.addEventListener('click', function () { openRegeneratePanel(div); });
-            actions.appendChild(copyA);
-            actions.appendChild(regen);
+            actionsInner.appendChild(copyA);
+            actionsInner.appendChild(regen);
+            // Assistant actions are permanently expanded.
+            actions.classList.add('actions-open', 'always');
         }
         div.appendChild(actions);
 
@@ -228,7 +261,7 @@
 
         fetch('/assistant/regenerate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(body)
         })
             .then(function (r) {
@@ -542,12 +575,23 @@
     // is given (and returns the id it landed in) — no pre-flight
     // "create conversation" round-trip, which used to fail silently on a
     // stale/missing CSRF token and drop the turn before it was logged.
-    fetch('/assistant/chat', {
+    // When editing, the turn goes to /assistant/edit instead: the original
+    // query AND the replies it produced are deleted server-side and the
+    // edited text is serviced as a fresh turn.
+    var editing = !!pendingEditOriginal;
+    var endpoint = editing ? '/assistant/edit' : '/assistant/chat';
+    var payload = editing
+        ? { message: text, originalMessage: pendingEditOriginal }
+        : { message: text };
+    if (currentConversationId) payload.conversationId = currentConversationId;
+    pendingEditOriginal = null; // consumed — Escape/normal send reset the mode
+    inputEl.classList.remove('editing');
+    inputEl.placeholder = 'Ask a question...';
+
+    fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-                currentConversationId ? { message: text, conversationId: currentConversationId }
-                                      : { message: text })
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(payload)
         })
         .then(function (r) {
             if (!r.ok) throw new Error('Request failed');
@@ -833,6 +877,12 @@
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
+        }
+        if (e.key === 'Escape' && pendingEditOriginal) {
+            // Cancel edit mode — restore the plain composer.
+            pendingEditOriginal = null;
+            inputEl.classList.remove('editing');
+            inputEl.placeholder = 'Ask a question...';
         }
     });
 })();

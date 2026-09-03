@@ -291,6 +291,48 @@ public class AssistantController {
     }
 
     /**
+     * POST /assistant/edit — the user edited one of their previous queries.
+     * Deletes the original query and the assistant replies it produced, then
+     * services the edited text as a fresh turn. Same hard catch-all as chat.
+     */
+    @PostMapping("/edit")
+    public ResponseEntity<AssistantReply> editMessage(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+
+        String editedMessage = body.get("message");
+        if (editedMessage == null || editedMessage.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Long conversationId = parseConversationId(body.get("conversationId"));
+
+        try {
+            User user = requireUser(userDetails);
+            AssistantReply reply = assistantService.editAndResend(
+                    user, body.get("originalMessage"), editedMessage, conversationId, autonomyOf(request));
+            return ResponseEntity.ok(reply);
+        } catch (Exception e) {
+            // Hard outer catch-all, mirroring the chat path above.
+            log.error("UNHANDLED EXCEPTION in /assistant/edit for user '{}': {}",
+                    userDetails.getUsername(), e.toString(), e);
+            try {
+                User user = userRepository.findByUsername(userDetails.getUsername()).orElse(null);
+                if (user != null) {
+                    return ResponseEntity.ok(assistantService.getFallbackReply(user));
+                }
+            } catch (Exception lookupFailure) {
+                log.error("Failed to look up user for fallback in outer catch-all", lookupFailure);
+            }
+            return ResponseEntity.ok(new AssistantReply(
+                    "I'm sorry, the assistant is temporarily unavailable due to an unexpected error. "
+                            + "Please try again later.",
+                    List.of()));
+        }
+    }
+
+    /**
      * POST /assistant/autonomy — set this session's autonomy mode. Accepts
      * {@code ALWAYS_CONFIRM} (default) or {@code AUTO_LOW_RISK}. The choice is
      * deliberately session-scoped: a fresh login always starts at
