@@ -43,6 +43,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
 
     private static final String NON_AGENTIC = "agentic_none";
     private static final String AGENTIC = "agentic_owner";
+    private static final String AGENTIC_MENU = "agentic_menu_editor";
 
     @Autowired UserService userService;
     @Autowired UserRepository userRepository;
@@ -59,6 +60,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     void seedUsersAndTrackedInventoryItem() {
         ensureUser(NON_AGENTIC, Role.ADMIN, Set.of(Permission.INVENTORY));
         ensureUser(AGENTIC, Role.ADMIN, Set.of(Permission.INVENTORY, Permission.AI_AGENTIC_ACTIONS));
+        ensureUser(AGENTIC_MENU, Role.ADMIN, Set.of(Permission.MENU, Permission.AI_AGENTIC_ACTIONS));
         new JdbcTemplate(dataSource).update("UPDATE cafe_user SET must_change_password = FALSE");
 
         // A tracked inventory item the write tools can act on (idempotent).
@@ -151,6 +153,77 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @org.junit.jupiter.api.Order(4)
+    void updateInventoryAlertTool_resetsThresholdAndTracking() {
+        User agentic = user(AGENTIC);
+        assertThat(toolRegistry.allowedToolNamesForUser(agentic)).contains("updateInventoryAlert");
+
+        String result = toolRegistry.execute("updateInventoryAlert",
+                "{\"itemName\":\"" + trackedItemName + "\",\"lowStockThreshold\":4,\"trackInventory\":true}",
+                agentic);
+        org.assertj.core.api.Assertions.assertThat(result).contains("threshold=4").contains("tracking=on");
+
+        Inventory inv = inventoryRepository.findAll().stream()
+                .filter(i -> i.getMenuItem().getName().equals(trackedItemName))
+                .findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(inv.getLowStockThreshold()).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(inv.isTrackInventory()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(inv.getStockQuantity())
+                .as("alert tool must not touch the stock quantity (set to 7 by the earlier ordered test)")
+                .isEqualTo(7);
+    }
+
+    @Test
+    @org.junit.jupiter.api.Order(5)
+    void updateInventoryAlertTool_isLowRisk_autoRunsWithoutConfirmation() {
+        assertThat(toolRegistry.requiresConfirmation("updateInventoryAlert", AgenticAutonomy.AUTO_LOW_RISK)).isFalse();
+        assertThat(toolRegistry.requiresConfirmation("updateInventoryAlert", AgenticAutonomy.ALWAYS_CONFIRM)).isTrue();
+        assertThat(toolRegistry.isWriteTool("updateInventoryAlert")).isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.Order(6)
+    void updateInventoryAlertTool_deniedWithoutAgenticPermission() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> toolRegistry.execute("updateInventoryAlert",
+                "{\"itemName\":\"" + trackedItemName + "\",\"lowStockThreshold\":3}", user(NON_AGENTIC)))
+                .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    @org.junit.jupiter.api.Order(7)
+    void updateMenuItemTool_scopedToMenuPermission_andUpdatesDetails() {
+        User agenticInventoryOnly = user(AGENTIC);
+        assertThat(toolRegistry.allowedToolNamesForUser(agenticInventoryOnly))
+                .as("menu editing requires the MENU permission even when agentic")
+                .doesNotContain("updateMenuItem");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> toolRegistry.execute("updateMenuItem",
+                "{\"itemName\":\"" + trackedItemName + "\",\"newPrice\":9.99}", agenticInventoryOnly))
+                .isInstanceOf(SecurityException.class);
+
+        // Always-confirmation policy: customer-facing change never auto-runs.
+        assertThat(toolRegistry.requiresConfirmation("updateMenuItem", AgenticAutonomy.AUTO_LOW_RISK)).isTrue();
+        assertThat(toolRegistry.isWriteTool("updateMenuItem")).isTrue();
+
+        User menuEditor = user(AGENTIC_MENU);
+        assertThat(toolRegistry.allowedToolNamesForUser(menuEditor)).contains("updateMenuItem");
+        String result = toolRegistry.execute("updateMenuItem",
+                "{\"itemName\":\"" + trackedItemName + "\",\"newPrice\":5.25,\"available\":false}",
+                menuEditor);
+        org.assertj.core.api.Assertions.assertThat(result).contains("price=$5.25").contains("now unavailable");
+
+        MenuItem item = menuItemRepository.findAll().stream()
+                .filter(m -> m.getName().equals(trackedItemName))
+                .findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(item.getPrice()).isEqualByComparingTo(new java.math.BigDecimal("5.25"));
+        org.assertj.core.api.Assertions.assertThat(item.isAvailable()).isFalse();
+
+        // Restore for the other tests that rely on availability/price.
+        item.setAvailable(true);
+        item.setPrice(new java.math.BigDecimal("4.50"));
+        menuItemRepository.save(item);
+    }
+
+    @Test
+    @org.junit.jupiter.api.Order(8)
     void confirmExecutesPendingActionAndAuditsIt() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
         int before = stockOf(trackedItemName);
@@ -173,7 +246,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(5)
+    @org.junit.jupiter.api.Order(9)
     void cancelLeavesDataUntouched() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
         int before = stockOf(trackedItemName);
@@ -193,7 +266,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(6)
+    @org.junit.jupiter.api.Order(10)
     void cannotConfirmAnotherUsersPendingAction() throws Exception {
         AssistantActionLog action = pendingAction(user(AGENTIC), "updateInventory",
                 "{\"itemName\":\"" + trackedItemName + "\",\"stockQuantity\":1}");
@@ -211,7 +284,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(7)
+    @org.junit.jupiter.api.Order(11)
     void pendingActionsEndpointListsOwnPendingActionsOnly() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
         AssistantActionLog action = pendingAction(user(AGENTIC), "updateInventory",
@@ -230,7 +303,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(8)
+    @org.junit.jupiter.api.Order(12)
     void autonomyDefaultsToAlwaysConfirmAndCanBeChangedPerSession() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
 
@@ -251,7 +324,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(9)
+    @org.junit.jupiter.api.Order(13)
     void loginAndLogoutAreRecorded() throws Exception {
         MockHttpSession session = login(NON_AGENTIC, "password123");
 
@@ -270,7 +343,7 @@ class AgenticActionsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Order(10)
+    @org.junit.jupiter.api.Order(14)
     void adminActionLogPageRenders() throws Exception {
         MockHttpSession session = login(AGENTIC, "password123");
         mockMvc.perform(get("/admin/assistant/actions").session(session))
