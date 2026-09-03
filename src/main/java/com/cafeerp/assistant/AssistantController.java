@@ -236,6 +236,61 @@ public class AssistantController {
     }
 
     /**
+     * POST /assistant/regenerate — ask the assistant to produce a new answer to
+     * a query it has ALREADY answered in this thread. The original query is not
+     * persisted again; the model is told this is a regeneration and (optionally)
+     * given the user's feedback on the previous attempt. Same hard catch-all as
+     * {@link #chat}.
+     */
+    @PostMapping("/regenerate")
+    public ResponseEntity<AssistantReply> regenerate(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+
+        String message = body.get("message");
+        if (message == null || message.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String conversationIdRaw = body.get("conversationId");
+        Long conversationId = null;
+        if (conversationIdRaw != null && !conversationIdRaw.isBlank()) {
+            try {
+                conversationId = Long.parseLong(conversationIdRaw);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+
+        try {
+            User user = requireUser(userDetails);
+            AssistantReply reply = assistantService.regenerateMessage(
+                    user, message, body.get("feedback"), conversationId, autonomyOf(request));
+            return ResponseEntity.ok(reply);
+        } catch (Exception e) {
+            // Hard outer catch-all, mirroring the chat path above.
+            log.error("UNHANDLED EXCEPTION in /assistant/regenerate for user '{}': {}",
+                    userDetails.getUsername(), e.toString(), e);
+
+            // Best-effort: try to look up the User entity for a role-scoped fallback
+            try {
+                User user = userRepository.findByUsername(userDetails.getUsername()).orElse(null);
+                if (user != null) {
+                    return ResponseEntity.ok(assistantService.getFallbackReply(user));
+                }
+            } catch (Exception lookupFailure) {
+                log.error("Failed to look up user for fallback in outer catch-all", lookupFailure);
+            }
+
+            return ResponseEntity.ok(new AssistantReply(
+                    "I'm sorry, the assistant is temporarily unavailable due to an unexpected error. "
+                            + "Please try again later.",
+                    List.of()));
+        }
+    }
+
+    /**
      * POST /assistant/autonomy — set this session's autonomy mode. Accepts
      * {@code ALWAYS_CONFIRM} (default) or {@code AUTO_LOW_RISK}. The choice is
      * deliberately session-scoped: a fresh login always starts at

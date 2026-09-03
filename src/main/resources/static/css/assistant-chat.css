@@ -831,3 +831,129 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
 
 .assistant-chat-autonomy select:focus-visible { box-shadow: 0 0 0 2px var(--ink); }
 
+/* ─── Per-message actions ──────────────────────────────────────
+   User queries: resend / copy / edit icon buttons that appear on
+   hover (touch devices: always faintly visible). Assistant replies:
+   copy / regenerate — always visible. */
+.msg-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity var(--dur) var(--ease);
+}
+
+.assistant-chat-msg.assistant .msg-actions { opacity: 1; }
+
+.assistant-chat-msg.user:hover .msg-actions,
+.assistant-chat-msg.user:focus-within .msg-actions { opacity: 1; }
+
+/* Touch devices have no hover — keep user actions faintly visible. */
+@media (hover: none) {
+    .msg-actions { opacity: 1; }
+    .assistant-chat-msg.user .msg-actions { opacity: .55; }
+    .assistant-chat-msg.user:hover .msg-actions { opacity: 1; }
+}
+
+.msg-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.msg-action-btn svg { width: 13px; height: 13px; }
+.msg-action-btn:hover { background: var(--surface-2); color: var(--ink); }
+.msg-action-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ink); }
+.msg-action-btn.copied { color: var(--ink); }
+
+.assistant-chat-msg.user .msg-action-btn { color: rgba(255, 255, 255, .75); }
+.assistant-chat-msg.user .msg-action-btn:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+
+/* Regeneration tracker — "2/2", "3/3", … under the reply */
+.msg-gen {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: var(--muted-2);
+    font-family: var(--font-mono, var(--font-sans));
+}
+
+.assistant-chat-msg.user .msg-gen { color: rgba(255, 255, 255, .6); }
+
+/* ─── Regeneration feedback prompt ("want to add feedback?") ─── */
+.msg-regen-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 10px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    max-width: min(88%, 460px);
+    animation: none;
+}
+
+.msg-regen-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.msg-regen-input {
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--paper);
+}
+
+.msg-regen-input:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px rgba(10, 10, 10, .06);
+}
+
+.msg-regen-row { display: flex; gap: 8px; justify-content: flex-end; }
+
+.msg-regen-go,
+.msg-regen-skip {
+    padding: 5px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--ink);
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.msg-regen-go { background: var(--ink); color: var(--paper); }
+.msg-regen-go:hover { background: var(--ink-soft); }
+.msg-regen-skip { background: var(--paper); color: var(--ink); }
+.msg-regen-skip:hover { background: var(--surface-2); }
+
+/* ─── Mobile: tighten the composer (input + send) ──────────────
+    The floating input area eats a lot of vertical space on small
+    screens — trim padding, gap and the send button footprint. */
+@media (max-width: 520px) {
+    #assistant-chat-input-area { gap: 6px; padding: 6px 8px; }
+    #assistant-chat-input { padding: 8px 14px; font-size: 13.5px; }
+    #assistant-chat-send { width: 34px; height: 34px; }
+    #assistant-chat-send svg { width: 14px; height: 14px; }
+    #assistant-chat-widget.fullscreen #assistant-chat-input-area { margin-bottom: 8px; }
+    .msg-regen-panel { max-width: 100%; }
+}
+
