@@ -388,6 +388,7 @@
 }
 #assistant-chat-input::placeholder { color: var(--muted-2); }
 #assistant-chat-input:disabled { background: var(--surface-2); color: var(--muted-2); }
+#assistant-chat-input.editing { border-color: var(--ink); background: var(--paper); }
 
 #assistant-chat-send {
     width: 40px;
@@ -832,28 +833,45 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
 .assistant-chat-autonomy select:focus-visible { box-shadow: 0 0 0 2px var(--ink); }
 
 /* ─── Per-message actions ──────────────────────────────────────
-   User queries: resend / copy / edit icon buttons that appear on
-   hover (touch devices: always faintly visible). Assistant replies:
-   copy / regenerate — always visible. */
+   User queries: resend / copy / edit icon buttons that DROP below
+   the bubble on hover with a slide animation — no space is reserved
+   beforehand, and they collapse away after 10 seconds as if they
+   were never there. Assistant replies: copy / regenerate — always
+   visible. */
 .msg-actions {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin-top: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: grid-template-rows .3s var(--ease),
+                opacity .22s var(--ease),
+                margin-top .3s var(--ease);
+}
+
+.msg-actions-inner {
+    overflow: hidden;
+    min-height: 0;
     display: flex;
     align-items: center;
     gap: 2px;
-    margin-top: 6px;
-    opacity: 0;
-    transition: opacity var(--dur) var(--ease);
 }
 
-.assistant-chat-msg.assistant .msg-actions { opacity: 1; }
+/* Open state: the row slides into existence, pushing the content
+   below it down naturally. */
+.assistant-chat-msg.actions-open .msg-actions {
+    grid-template-rows: 1fr;
+    margin-top: 4px;
+    opacity: 1;
+    pointer-events: auto;
+}
 
-.assistant-chat-msg.user:hover .msg-actions,
-.assistant-chat-msg.user:focus-within .msg-actions { opacity: 1; }
-
-/* Touch devices have no hover — keep user actions faintly visible. */
-@media (hover: none) {
-    .msg-actions { opacity: 1; }
-    .assistant-chat-msg.user .msg-actions { opacity: .55; }
-    .assistant-chat-msg.user:hover .msg-actions { opacity: 1; }
+/* Assistant replies keep their actions permanently expanded. */
+.assistant-chat-msg .msg-actions.always {
+    grid-template-rows: 1fr;
+    margin-top: 4px;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .msg-action-btn {

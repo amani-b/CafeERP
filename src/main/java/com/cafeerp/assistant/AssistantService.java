@@ -152,6 +152,55 @@ public class AssistantService {
     /** Regeneration context: optional user feedback on the previous attempt. */
     public record Regeneration(String feedback) {}
 
+    /**
+     * Edit-and-resend: the user edited one of their previous queries. The
+     * original query AND the assistant replies it produced are deleted from
+     * the thread, then the edited text is processed as a fresh turn (persisted
+     * like any normal message). If the original text can no longer be matched
+     * (already edited, legacy thread, etc.) the edited message is simply
+     * processed as a new turn — the edit never loses the user's input.
+     */
+    @Transactional
+    public AssistantReply editAndResend(User user, String originalMessage, String editedMessage,
+                                        Long conversationId, AgenticAutonomy autonomy) {
+        AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
+        AssistantConversation conversation = resolveConversation(user, conversationId);
+        deleteOriginalTurn(conversation, originalMessage);
+        AssistantReply reply = processMessageInConversation(user, editedMessage, conversation, mode, null);
+        return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
+    }
+
+    /**
+     * Removes the LAST user message matching {@code originalMessage} together
+     * with every assistant reply that directly followed it (stops at the next
+     * user message, so later turns are untouched).
+     */
+    private void deleteOriginalTurn(AssistantConversation conversation, String originalMessage) {
+        if (conversation.getId() == null || originalMessage == null || originalMessage.isBlank()) {
+            return;
+        }
+        List<AssistantMessage> messages =
+                messageRepository.findByConversationOrderByCreatedAtAscIdAsc(conversation);
+        int anchor = -1;
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            AssistantMessage m = messages.get(i);
+            if (m.getRole() == AssistantMessageRole.USER && originalMessage.equals(m.getContent())) {
+                anchor = i;
+                break;
+            }
+        }
+        if (anchor < 0) {
+            return; // nothing matched — caller still services the edited text
+        }
+        for (int i = anchor; i < messages.size(); i++) {
+            AssistantMessage m = messages.get(i);
+            if (i > anchor && m.getRole() == AssistantMessageRole.USER) {
+                break; // a later turn begins — stop deleting
+            }
+            messageRepository.delete(m);
+        }
+    }
+
     private AssistantReply processMessageInConversation(User user, String userMessage,
                                                         AssistantConversation conversation,
                                                         AgenticAutonomy autonomy) {
