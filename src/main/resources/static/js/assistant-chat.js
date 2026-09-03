@@ -646,6 +646,13 @@
                         } catch (e) { /* malformed step — ignore */ }
                     } else if (eventName === 'reply') {
                         finishOk(JSON.parse(data));
+                    } else if (eventName === 'title') {
+                        // Phase 5: the conversation's summary title just landed
+                        // server-side — update the sidebar immediately.
+                        try {
+                            var t = JSON.parse(data);
+                            applySidebarTitle(t.conversationId, t.title);
+                        } catch (e) { /* malformed title event — ignore */ }
                     } else if (eventName === 'error') {
                         var text = null;
                         try { text = JSON.parse(data).text; } catch (e) { /* keep null */ }
@@ -665,9 +672,35 @@
                         if (!r.ok) throw new Error('Request failed');
                         return r.json();
                     })
-                    .then(finishOk)
+                    .then(function (reply) {
+                        finishOk(reply);
+                        // Legacy path has no title event: the summary may land
+                        // a moment later server-side — re-sync the sidebar.
+                        setTimeout(refreshHistoryLists, 4000);
+                    })
                     .catch(function () { finishBad(null); });
             });
+    }
+
+    // Updates the sidebar's name for a conversation in place (both the
+    // fullscreen sidebar and the compact overlay list), preserving any
+    // "Archived" badge. Falls back to a full history refresh when the item
+    // is not currently rendered.
+    function applySidebarTitle(conversationId, title) {
+        if (!conversationId || !title) return;
+        var updated = false;
+        var items = document.querySelectorAll(
+            '.assistant-history-item[data-conversation-id="' + conversationId + '"]');
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            // Item structure: text node (title) then optional badge span —
+            // only touch the text node so the badge survives.
+            if (item.firstChild && item.firstChild.nodeType === 3) {
+                item.firstChild.textContent = title;
+                updated = true;
+            }
+        }
+        if (!updated) refreshHistoryLists();
     }
 
     // Strips transport-only fields (mode) from the streamed payload so it

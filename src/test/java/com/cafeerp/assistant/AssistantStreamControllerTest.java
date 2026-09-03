@@ -48,6 +48,9 @@ class AssistantStreamControllerTest {
     private AssistantService assistantService;
 
     @MockBean
+    private AssistantTitleService titleService;
+
+    @MockBean
     private UserRepository userRepository;
 
     @MockBean
@@ -85,8 +88,13 @@ class AssistantStreamControllerTest {
                     AssistantTraceListener trace = invocation.getArgument(4);
                     trace.onStep("Looking up order #482…", "start");
                     trace.onStep("Done — PENDING, 2 items.", "done");
-                    return new AssistantReply("Order #482 is PENDING.", List.of());
+                    return new AssistantReply("Order #482 is PENDING.", List.of(), 1L, List.of());
                 });
+        // This turn triggered the conversation's first summary title.
+        when(titleService.titleFutureFor(1L))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(true));
+        when(titleService.latestTitleOf(1L))
+                .thenReturn(java.util.Optional.of("Checking order 482 status"));
 
         MvcResult result = mockMvc.perform(post("/assistant/chat/stream")
                         .with(SecurityMockMvcRequestPostProcessors.csrf())
@@ -110,6 +118,10 @@ class AssistantStreamControllerTest {
                 "stream should end with a reply event: " + body);
         org.junit.jupiter.api.Assertions.assertTrue(body.contains("Order #482 is PENDING."),
                 "reply event should carry the full reply JSON: " + body);
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("event:title"),
+                "stream should deliver the fresh summary title: " + body);
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Checking order 482 status"),
+                "title event should carry the AI summary: " + body);
     }
 
     @Test
