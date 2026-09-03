@@ -1,3 +1,6 @@
+/* Inside a confirmation card the trace sits under the buttons — tighter. */
+.assistant-action-card .assistant-trace { margin: 10px 0 2px; }
+
 /* Floating assistant chat widget — consumes the shared tokens from
    app.css (loaded first). Kept as its own file since it is a
    self-contained component with many descendant selectors.

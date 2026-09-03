@@ -45,7 +45,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.ignoringRequestMatchers(
                     "/assistant/chat", "/assistant/regenerate", "/assistant/edit",
-                    "/assistant/chat/stream"))
+                    "/assistant/chat/stream", "/assistant/actions/*/stream"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health",
                         "/build-version").permitAll()

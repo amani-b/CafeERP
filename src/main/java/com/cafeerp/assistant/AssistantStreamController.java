@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -130,6 +131,66 @@ public class AssistantStreamController {
                 } catch (Exception fatal) {
                     emitter.completeWithError(fatal);
                 }
+            }
+        });
+
+        return emitter;
+    }
+
+    /**
+     * POST /assistant/actions/{id}/stream — Phase 5: streamed confirm/cancel.
+     * Body: {@code {verb: "confirm"|"cancel", conversationId?}}. Emits the
+     * same {@code step} / {@code reply} SSE contract as {@code /chat/stream},
+     * so the confirmation card shows a live trace while the action runs
+     * (or is declined). {@code event:error} signals a gone/foreign action.
+     */
+    @PostMapping(value = "/actions/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamAction(@AuthenticationPrincipal UserDetails userDetails,
+                                   @PathVariable Long id,
+                                   @RequestBody Map<String, String> body,
+                                   HttpServletRequest request) {
+        String verb = body.getOrDefault("verb", "confirm");
+        if (!"confirm".equals(verb) && !"cancel".equals(verb)) {
+            throw new IllegalArgumentException("verb must be confirm or cancel");
+        }
+
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalStateException("Authenticated user not found in database"));
+        Long conversationId = parseConversationId(body.get("conversationId"));
+
+        SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
+        emitter.onTimeout(emitter::complete);
+
+        streamExecutor.execute(() -> {
+            AssistantTraceListener trace = (text, state) -> {
+                try {
+                    emitter.send(SseEmitter.event().name("step")
+                            .data(Map.of("text", text, "state", state), MediaType.APPLICATION_JSON));
+                } catch (Exception e) {
+                    throw new IllegalStateException("SSE client disconnected", e);
+                }
+            };
+            try {
+                AssistantReply reply = "cancel".equals(verb)
+                        ? assistantService.cancelPendingAction(user, id, conversationId, trace)
+                        : assistantService.confirmPendingAction(user, id, conversationId, trace);
+                emitter.send(SseEmitter.event().name("reply").data(reply, MediaType.APPLICATION_JSON));
+                emitter.complete();
+            } catch (IllegalArgumentException e) {
+                // Unknown, foreign or already-resolved action — the JSON
+                // endpoints map this to 404; over SSE we tell the client
+                // explicitly so it can reset the card.
+                try {
+                    emitter.send(SseEmitter.event().name("error")
+                            .data(Map.of("text", "That action is no longer available."),
+                                    MediaType.APPLICATION_JSON));
+                    emitter.complete();
+                } catch (Exception fatal) {
+                    emitter.completeWithError(fatal);
+                }
+            } catch (Exception e) {
+                log.error("Streaming action {} failed: {}", verb, e.getMessage(), e);
+                emitter.completeWithError(e);
             }
         });
 
