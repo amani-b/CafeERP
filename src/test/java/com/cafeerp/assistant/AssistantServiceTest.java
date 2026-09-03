@@ -123,7 +123,8 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard, actionLogRepository);
+                fallbackHandler, accessGuard, actionLogRepository,
+                org.mockito.Mockito.mock(AssistantTitleService.class));
     }
 
     // ---------------------------------------------------------------
@@ -254,7 +255,8 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard, actionLogRepository);
+                fallbackHandler, accessGuard, actionLogRepository,
+                org.mockito.Mockito.mock(AssistantTitleService.class));
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 
@@ -298,7 +300,8 @@ class AssistantServiceTest {
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
                 toolRegistry, new ObjectMapper(), chatCompletionClient, configProperties,
-                fallbackHandler, accessGuard, actionLogRepository);
+                fallbackHandler, accessGuard, actionLogRepository,
+                org.mockito.Mockito.mock(AssistantTitleService.class));
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
 
