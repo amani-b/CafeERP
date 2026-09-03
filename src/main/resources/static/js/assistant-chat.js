@@ -52,9 +52,46 @@
         return String(text).replace(/\n{3,}/g, '\n\n').trim();
     }
 
+    var ICONS = {
+        resend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>',
+        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
+        copyOk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+        edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+        regenerate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>'
+    };
+
+    function makeIconButton(kind, label) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'msg-action-btn msg-action-' + kind;
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+        btn.innerHTML = ICONS[kind];
+        return btn;
+    }
+
+    function copyTextToClipboard(text, btn) {
+        var done = function () {
+            if (!btn) return;
+            var prev = btn.innerHTML;
+            btn.innerHTML = ICONS.copyOk;
+            btn.classList.add('copied');
+            setTimeout(function () {
+                btn.innerHTML = prev;
+                btn.classList.remove('copied');
+            }, 1200);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, done);
+        } else {
+            done();
+        }
+    }
+
     function buildMessageShell(role) {
         var div = document.createElement('div');
         div.className = 'assistant-chat-msg ' + role;
+        div.setAttribute('data-role', role);
 
         var roleLabel = document.createElement('div');
         roleLabel.className = 'msg-role';
@@ -65,9 +102,190 @@
         textDiv.className = 'msg-text';
         div.appendChild(textDiv);
 
+        // Per-message actions. User queries: resend / copy / edit — hover-only.
+        // Assistant replies: copy / regenerate — always visible.
+        var actions = document.createElement('div');
+        actions.className = 'msg-actions';
+        if (role === 'user') {
+            var resend = makeIconButton('resend', 'Resend this message');
+            resend.addEventListener('click', function () {
+                if (sendInFlight) return;
+                inputEl.value = textDiv.textContent;
+                inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+                sendMessage();
+            });
+            var copyU = makeIconButton('copy', 'Copy');
+            copyU.addEventListener('click', function () {
+                copyTextToClipboard(textDiv.textContent, copyU);
+            });
+            var edit = makeIconButton('edit', 'Edit message');
+            edit.addEventListener('click', function () {
+                inputEl.value = textDiv.textContent;
+                inputEl.style.height = 'auto';
+                inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+                inputEl.focus();
+            });
+            actions.appendChild(resend);
+            actions.appendChild(copyU);
+            actions.appendChild(edit);
+        } else {
+            var copyA = makeIconButton('copy', 'Copy');
+            copyA.addEventListener('click', function () {
+                copyTextToClipboard(textDiv.textContent, copyA);
+            });
+            var regen = makeIconButton('regenerate', 'Regenerate response');
+            regen.addEventListener('click', function () { openRegeneratePanel(div); });
+            actions.appendChild(copyA);
+            actions.appendChild(regen);
+        }
+        div.appendChild(actions);
+
         messagesContainer.appendChild(div);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         return { root: div, textEl: textDiv };
+    }
+
+    // The original query a given assistant message answers: the nearest
+    // preceding user bubble's text (DOM walk — works for both server-rendered
+    // threads and freshly added messages).
+    function originalQueryForAssistantMessage(root) {
+        var prev = root.previousElementSibling;
+        while (prev) {
+            if (prev.classList && prev.classList.contains('assistant-chat-msg') &&
+                prev.getAttribute('data-role') === 'user') {
+                var t = prev.querySelector('.msg-text');
+                return t ? t.textContent.trim() : '';
+            }
+            prev = prev.previousElementSibling;
+        }
+        return '';
+    }
+
+    // Regeneration prompt: "want to add feedback?" — optional. Both buttons
+    // fire the regenerate request; the difference is only whether feedback
+    // accompanies it.
+    function openRegeneratePanel(assistantRoot) {
+        if (sendInFlight) return;
+        var existing = messagesContainer.querySelector('.msg-regen-panel');
+        if (existing) existing.remove();
+
+        var query = originalQueryForAssistantMessage(assistantRoot);
+        if (!query) return;
+
+        var panel = document.createElement('div');
+        panel.className = 'msg-regen-panel';
+
+        var label = document.createElement('div');
+        label.className = 'msg-regen-label';
+        label.textContent = 'Want to add feedback? (optional)';
+        panel.appendChild(label);
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'msg-regen-input';
+        input.placeholder = 'e.g. make it shorter, focus on sales\u2026';
+        input.setAttribute('aria-label', 'Feedback for the regenerated response');
+        panel.appendChild(input);
+
+        var row = document.createElement('div');
+        row.className = 'msg-regen-row';
+        var go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'msg-regen-go';
+        go.textContent = 'Regenerate';
+        var skip = document.createElement('button');
+        skip.type = 'button';
+        skip.className = 'msg-regen-skip';
+        skip.textContent = 'No, just regenerate';
+        row.appendChild(skip);
+        row.appendChild(go);
+        panel.appendChild(row);
+
+        function fire(feedback) {
+            panel.remove();
+            regenerateResponse(query, feedback);
+        }
+        go.addEventListener('click', function () { fire(input.value.trim()); });
+        skip.addEventListener('click', function () { fire(''); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); fire(input.value.trim()); }
+            if (e.key === 'Escape') { e.stopPropagation(); panel.remove(); }
+        });
+
+        messagesContainer.insertBefore(panel, assistantRoot.nextSibling);
+        input.focus();
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function regenerateResponse(query, feedback) {
+        if (sendInFlight || !query) return;
+        sendInFlight = true;
+        setLoading(true);
+
+        var body = { message: query };
+        if (feedback) body.feedback = feedback;
+        if (currentConversationId) body.conversationId = currentConversationId;
+
+        fetch('/assistant/regenerate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('Regenerate failed');
+                return r.json();
+            })
+            .then(function (reply) {
+                setLoading(false);
+                sendInFlight = false;
+                if (reply.conversationId) currentConversationId = reply.conversationId;
+                addAssistantMessageWithReveal(reply.text, reply.links || []);
+                if (reply.pendingActions && reply.pendingActions.length) {
+                    reply.pendingActions.forEach(renderPendingActionCard);
+                }
+                refreshGenerationBadges();
+                loadConversationMessages();
+                refreshHistoryLists();
+            })
+            .catch(function () {
+                setLoading(false);
+                sendInFlight = false;
+                showError('Failed to regenerate a response. Please try again.');
+                refreshHistoryLists();
+            });
+    }
+
+    // Regeneration tracker: for every run of consecutive assistant messages
+    // following one user query, label each with "i/n" — first generation 1/1,
+    // a regenerated one 2/2, a third attempt 3/3, and so on. Recomputed from
+    // the DOM so the labels survive thread re-renders from server history.
+    function refreshGenerationBadges() {
+        var msgs = messagesContainer.querySelectorAll('.assistant-chat-msg[data-role]');
+        var run = [];
+        var userSeen = false;
+        function closeRun() {
+            run.forEach(function (root, idx) {
+                var existing = root.querySelector('.msg-gen');
+                if (existing) existing.remove();
+                if (run.length > 1) {
+                    var badge = document.createElement('div');
+                    badge.className = 'msg-gen';
+                    badge.textContent = (idx + 1) + '/' + run.length;
+                    root.appendChild(badge);
+                }
+            });
+            run = [];
+        }
+        for (var i = 0; i < msgs.length; i++) {
+            var el = msgs[i];
+            if (el.getAttribute('data-role') === 'user') {
+                closeRun();
+                userSeen = true;
+            } else if (userSeen) {
+                run.push(el);
+            }
+        }
+        closeRun();
     }
 
     function renderAssistantMarkdown(el, text) {
@@ -240,6 +458,7 @@
         messages.forEach(function (m) {
             addMessage(m.role === 'USER' ? 'user' : 'assistant', m.content, null);
         });
+        refreshGenerationBadges();
     }
 
     function loadConversationMessages() {
@@ -343,6 +562,7 @@
             if (reply.pendingActions && reply.pendingActions.length) {
                 reply.pendingActions.forEach(renderPendingActionCard);
             }
+            refreshGenerationBadges();
             // The turn is now durably persisted (server writes both sides
             // synchronously before responding) — re-sync the thread from
             // the server so the pane always matches the durable history,
