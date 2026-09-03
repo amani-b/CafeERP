@@ -122,6 +122,10 @@ public class AssistantToolRegistry {
             }
             if (AgenticPermissions.holds(user, Permission.INVENTORY)) {
                 tools.add(updateInventoryTool());
+                tools.add(updateInventoryAlertTool());
+            }
+            if (AgenticPermissions.holds(user, Permission.MENU)) {
+                tools.add(updateMenuItemTool());
             }
         }
         return tools;
@@ -369,6 +373,47 @@ public class AssistantToolRegistry {
         );
     }
 
+    private Map<String, Object> updateInventoryAlertTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "updateInventoryAlert",
+                "description", "Update the low-stock alert settings of a menu item: its alert threshold (the stock level at or below which it is flagged as low) and whether its stock is tracked at all. Low-risk: may run automatically when the user has enabled the auto low-risk autonomy mode.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "itemName", Map.of("type", "string", "description", "Exact menu item name"),
+                        "lowStockThreshold", Map.of("type", "integer", "description", "The new low-stock alert threshold (0 or more)"),
+                        "trackInventory", Map.of("type", "boolean", "description", "Optional: whether stock tracking is enabled for this item (true/false). Omit to leave unchanged."),
+                        "taskOrder", Map.of("type", "integer", "description", "1-based position of this task in the user's message (first-mentioned task = 1, second = 2, ...). Required when the message requests multiple tasks.")
+                    ),
+                    "required", List.of("itemName", "lowStockThreshold")
+                )
+            )
+        );
+    }
+
+    private Map<String, Object> updateMenuItemTool() {
+        return Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "updateMenuItem",
+                "description", "Update a menu item's customer-facing details: its price, whether it is available, and/or its name. Always requires the user's explicit confirmation in the chat UI.",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "itemName", Map.of("type", "string", "description", "Exact current menu item name"),
+                        "newPrice", Map.of("type", "number", "description", "Optional: the new price (0 or more). Omit to leave unchanged."),
+                        "available", Map.of("type", "boolean", "description", "Optional: whether the item is available (true/false). Omit to leave unchanged."),
+                        "newName", Map.of("type", "string", "description", "Optional: the new item name. Omit to leave unchanged."),
+                        "taskOrder", Map.of("type", "integer", "description", "1-based position of this task in the user's message (first-mentioned task = 1, second = 2, ...). Required when the message requests multiple tasks.")
+                    ),
+                    "required", List.of("itemName")
+                )
+            )
+        );
+    }
+
     // ---------------------------------------------------------------
     //  Write-tool metadata (confirmation policy + audit descriptions)
     // ---------------------------------------------------------------
@@ -376,7 +421,8 @@ public class AssistantToolRegistry {
     /** True when the tool mutates data (vs. read-only lookup). */
     public boolean isWriteTool(String toolName) {
         return switch (toolName) {
-            case "createOrder", "updateOrderStatus", "updateInventory" -> true;
+            case "createOrder", "updateOrderStatus", "updateInventory",
+                 "updateInventoryAlert", "updateMenuItem" -> true;
             default -> false;
         };
     }
@@ -388,7 +434,8 @@ public class AssistantToolRegistry {
     public Optional<Permission> requiredPermissionFor(String toolName) {
         return switch (toolName) {
             case "createOrder", "updateOrderStatus" -> Optional.of(Permission.ORDER_KITCHEN);
-            case "updateInventory" -> Optional.of(Permission.INVENTORY);
+            case "updateInventory", "updateInventoryAlert" -> Optional.of(Permission.INVENTORY);
+            case "updateMenuItem" -> Optional.of(Permission.MENU);
             default -> Optional.empty();
         };
     }
@@ -402,7 +449,10 @@ public class AssistantToolRegistry {
         if (!isWriteTool(toolName)) {
             return false;
         }
-        if (autonomy == AgenticAutonomy.AUTO_LOW_RISK && "updateInventory".equals(toolName)) {
+        // Low-risk inventory housekeeping may auto-run in AUTO_LOW_RISK mode;
+        // customer-facing menu changes always need explicit confirmation.
+        if (autonomy == AgenticAutonomy.AUTO_LOW_RISK
+                && ("updateInventory".equals(toolName) || "updateInventoryAlert".equals(toolName))) {
             return false;
         }
         return true;
@@ -425,6 +475,32 @@ public class AssistantToolRegistry {
                         args.get("orderId"), String.valueOf(args.get("status")).toUpperCase());
                 case "updateInventory" -> String.format("Set stock of \"%s\" to %s units.",
                         args.get("itemName"), args.get("stockQuantity"));
+                case "updateInventoryAlert" -> {
+                    StringBuilder sb = new StringBuilder(String.format("Set low-stock alert threshold of \"%s\" to %s",
+                            args.get("itemName"), args.get("lowStockThreshold")));
+                    if (args.get("trackInventory") != null) {
+                        sb.append(Boolean.parseBoolean(String.valueOf(args.get("trackInventory")))
+                                ? " and enable stock tracking" : " and disable stock tracking");
+                    }
+                    yield sb.append(".").toString();
+                }
+                case "updateMenuItem" -> {
+                    StringBuilder sb = new StringBuilder("Update menu item \"").append(args.get("itemName")).append("\"");
+                    String sep = ":";
+                    if (args.get("newPrice") != null) {
+                        sb.append(sep).append(" price to ").append(args.get("newPrice"));
+                        sep = ", ";
+                    }
+                    if (args.get("available") != null) {
+                        sb.append(sep).append(Boolean.parseBoolean(String.valueOf(args.get("available")))
+                                ? " mark available" : " mark unavailable");
+                        sep = ", ";
+                    }
+                    if (args.get("newName") != null) {
+                        sb.append(sep).append(" rename to \"").append(args.get("newName")).append("\"");
+                    }
+                    yield sb.append(".").toString();
+                }
                 default -> "Execute " + toolName;
             };
         } catch (Exception e) {
@@ -684,6 +760,62 @@ public class AssistantToolRegistry {
                             stockQuantity, inv.getLowStockThreshold());
                     return String.format("Updated stock of \"%s\" to %d units",
                             inv.getMenuItem().getName(), stockQuantity);
+                }
+                case "updateInventoryAlert": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String itemName = String.valueOf(args.get("itemName"));
+                    int threshold = ((Number) args.get("lowStockThreshold")).intValue();
+                    if (threshold < 0) {
+                        throw new IllegalArgumentException("lowStockThreshold cannot be negative");
+                    }
+                    boolean trackInventory = args.get("trackInventory") != null
+                            ? Boolean.parseBoolean(String.valueOf(args.get("trackInventory")))
+                            : true; // resolved from the actual row below when absent
+                    Inventory inv = inventoryService.findAll().stream()
+                            .filter(i -> i.getMenuItem().getName().equalsIgnoreCase(itemName))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException("tracked inventory item not found: " + itemName));
+                    boolean effectiveTrack = args.get("trackInventory") != null
+                            ? trackInventory : inv.isTrackInventory();
+                    inventoryService.update(inv.getId(), effectiveTrack,
+                            inv.getStockQuantity(), threshold);
+                    return String.format("Updated low-stock alert of \"%s\": threshold=%d, tracking=%s",
+                            inv.getMenuItem().getName(), threshold, effectiveTrack ? "on" : "off");
+                }
+                case "updateMenuItem": {
+                    Map<String, Object> args = objectMapper.readValue(argumentsJson,
+                            new TypeReference<Map<String, Object>>() {});
+                    String itemName = String.valueOf(args.get("itemName"));
+                    MenuItem item = menuService.findAll().stream()
+                            .filter(m -> m.getName().equalsIgnoreCase(itemName))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException("menu item not found: " + itemName));
+                    StringBuilder summary = new StringBuilder("Updated menu item \"").append(item.getName()).append("\"");
+                    if (args.get("newPrice") != null) {
+                        java.math.BigDecimal newPrice = new java.math.BigDecimal(
+                                String.valueOf(args.get("newPrice")));
+                        if (newPrice.signum() < 0) {
+                            throw new IllegalArgumentException("newPrice cannot be negative");
+                        }
+                        item.setPrice(newPrice);
+                        summary.append(String.format(", price=$%.2f", newPrice));
+                    }
+                    if (args.get("available") != null) {
+                        boolean available = Boolean.parseBoolean(String.valueOf(args.get("available")));
+                        item.setAvailable(available);
+                        summary.append(available ? ", now available" : ", now unavailable");
+                    }
+                    if (args.get("newName") != null) {
+                        String newName = String.valueOf(args.get("newName")).trim();
+                        if (newName.isEmpty()) {
+                            throw new IllegalArgumentException("newName cannot be empty");
+                        }
+                        summary.append(", renamed to \"").append(newName).append("\"");
+                        item.setName(newName);
+                    }
+                    menuService.save(item);
+                    return summary.append(".").toString();
                 }
                 default:
                     return "Unknown tool: " + toolName;

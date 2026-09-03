@@ -784,12 +784,16 @@ public class AssistantService {
                 + "Voice: human, encouraging, plainspoken — contractions welcome, no corporate jargon. Speak to "
                 + "the owner like a trusted colleague: honest about problems, constructive about fixes.\n"
                 + (agentic
-                    ? "Agentic actions: you can create orders, change order statuses and update inventory counts "
-                    + "with your write tools. Use them when the user clearly asks for the change — never on a guess. "
-                    + "Order-impacting actions (createOrder, updateOrderStatus) are recorded as a pending action the "
-                    + "user must approve in the chat UI, so tell them plainly what you are about to do and why. "
-                    + "Inventory updates may run automatically depending on the user's autonomy setting. You must "
-                    + "NEVER attempt to delete users or data — those actions do not exist for you.\n"
+                    ? "Agentic actions: you can create orders, change order statuses, update inventory counts, "
+                    + "adjust low-stock alert thresholds and stock tracking, and update menu item details "
+                    + "(price, availability, name) with your write tools. Use them when the user clearly asks "
+                    + "for the change — never on a guess. "
+                    + "Order-impacting actions (createOrder, updateOrderStatus) and menu edits (updateMenuItem) "
+                    + "are recorded as a pending action the user must approve in the chat UI, so tell them "
+                    + "plainly what you are about to do and why. Inventory updates and alert-threshold changes "
+                    + "may run automatically depending on the user's autonomy setting. You must NEVER attempt "
+                    + "to create, delete or modify user accounts, roles or permissions, and never delete data — "
+                    + "those actions do not exist for you.\n"
                     + "Task handling (CRITICAL): when a message asks for several tasks, you MUST cover EVERY task "
                     + "the user mentioned — one tool call per task, ALL issued before you write your final answer. "
                     + "Issue them in the SAME order the tasks appear in the user's message (read it left to right) "
@@ -867,6 +871,10 @@ public class AssistantService {
         if (AgenticPermissions.holds(user, Permission.INVENTORY)) {
             map.put("getInventoryLevel", "/inventory");
             map.put("updateInventory", "/inventory");
+            map.put("updateInventoryAlert", "/inventory");
+        }
+        if (AgenticPermissions.holds(user, Permission.MENU)) {
+            map.put("updateMenuItem", "/menu");
         }
         if (AgenticPermissions.holds(user, Permission.ORDER_KITCHEN)) {
             map.put("createOrder", "/orders");
