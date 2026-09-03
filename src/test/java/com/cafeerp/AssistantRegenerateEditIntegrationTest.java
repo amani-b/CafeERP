@@ -61,8 +61,15 @@ class AssistantRegenerateEditIntegrationTest extends AbstractIntegrationTest {
             if ("USER".equals(m.get("role"))) userMessagesAfter++;
         }
         assertThat(userMessagesAfter).isEqualTo(userMessagesBefore);
-        // ...but a NEW assistant reply WAS appended.
-        assertThat(messages.size()).isGreaterThan(userMessagesAfter * 2 - 1);
+        // The previous AI reply is REPLACED, not stacked: exactly one assistant
+        // reply follows the query, and the thread length is unchanged.
+        assertThat(messages.size()).isEqualTo(userMessagesAfter * 2);
+        long assistantReplies = messages.stream()
+                .filter(m -> "ASSISTANT".equals(m.get("role"))).count();
+        assertThat(assistantReplies).isEqualTo(userMessagesAfter);
+        assertThat(messages).anyMatch(m ->
+                "ASSISTANT".equals(m.get("role")) && m.get("content") != null
+                        && !String.valueOf(m.get("content")).isBlank());
     }
 
     @Test

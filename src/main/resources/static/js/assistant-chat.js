@@ -258,6 +258,7 @@
         var body = { message: query };
         if (feedback) body.feedback = feedback;
         if (currentConversationId) body.conversationId = currentConversationId;
+        var attemptKey = (currentConversationId || '') + '|' + query;
 
         fetch('/assistant/regenerate', {
             method: 'POST',
@@ -272,6 +273,7 @@
                 setLoading(false);
                 sendInFlight = false;
                 if (reply.conversationId) currentConversationId = reply.conversationId;
+                regenAttempts[attemptKey] = (regenAttempts[attemptKey] || 1) + 1;
                 addAssistantMessageWithReveal(reply.text, reply.links || []);
                 if (reply.pendingActions && reply.pendingActions.length) {
                     reply.pendingActions.forEach(renderPendingActionCard);
@@ -288,37 +290,30 @@
             });
     }
 
-    // Regeneration tracker: for every run of consecutive assistant messages
-    // following one user query, label each with "i/n" — first generation 1/1,
-    // a regenerated one 2/2, a third attempt 3/3, and so on. Recomputed from
-    // the DOM so the labels survive thread re-renders from server history.
+    // Regeneration attempt counters, keyed per conversation+query: the 2nd
+    // generation of an answer is labelled 2/2, the 3rd 3/3, and so on. Since
+    // regeneration now REPLACES the previous AI reply (it is deleted), the
+    // count is tracked here rather than by counting sibling replies.
+    var regenAttempts = {};
+
+    // Regeneration tracker: label each assistant reply whose generation count
+    // exceeds one with "N/N". Recomputed from the DOM so it survives thread
+    // re-renders from server history.
     function refreshGenerationBadges() {
-        var msgs = messagesContainer.querySelectorAll('.assistant-chat-msg[data-role]');
-        var run = [];
-        var userSeen = false;
-        function closeRun() {
-            run.forEach(function (root, idx) {
-                var existing = root.querySelector('.msg-gen');
-                if (existing) existing.remove();
-                if (run.length > 1) {
-                    var badge = document.createElement('div');
-                    badge.className = 'msg-gen';
-                    badge.textContent = (idx + 1) + '/' + run.length;
-                    root.appendChild(badge);
-                }
-            });
-            run = [];
-        }
+        var msgs = messagesContainer.querySelectorAll('.assistant-chat-msg[data-role="assistant"]');
         for (var i = 0; i < msgs.length; i++) {
             var el = msgs[i];
-            if (el.getAttribute('data-role') === 'user') {
-                closeRun();
-                userSeen = true;
-            } else if (userSeen) {
-                run.push(el);
+            var existing = el.querySelector('.msg-gen');
+            if (existing) existing.remove();
+            var query = originalQueryForAssistantMessage(el);
+            var n = regenAttempts[(currentConversationId || '') + '|' + query] || 1;
+            if (n > 1) {
+                var badge = document.createElement('div');
+                badge.className = 'msg-gen';
+                badge.textContent = n + '/' + n;
+                el.appendChild(badge);
             }
         }
-        closeRun();
     }
 
     function renderAssistantMarkdown(el, text) {
