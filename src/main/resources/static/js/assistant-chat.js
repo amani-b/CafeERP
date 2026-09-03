@@ -255,21 +255,12 @@
         sendInFlight = true;
         setLoading(true);
 
-        var body = { message: query };
+        var body = { message: query, mode: 'regenerate' };
         if (feedback) body.feedback = feedback;
         if (currentConversationId) body.conversationId = currentConversationId;
         var attemptKey = (currentConversationId || '') + '|' + query;
 
-        fetch('/assistant/regenerate', {
-            method: 'POST',
-            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(body)
-        })
-            .then(function (r) {
-                if (!r.ok) throw new Error('Regenerate failed');
-                return r.json();
-            })
-            .then(function (reply) {
+        streamTurn(body, function (reply) {
                 setLoading(false);
                 sendInFlight = false;
                 if (reply.conversationId) currentConversationId = reply.conversationId;
@@ -281,8 +272,7 @@
                 refreshGenerationBadges();
                 loadConversationMessages();
                 refreshHistoryLists();
-            })
-            .catch(function () {
+            }, function () {
                 setLoading(false);
                 sendInFlight = false;
                 showError('Failed to regenerate a response. Please try again.');
@@ -556,6 +546,120 @@
 
     // ----------------------------- sending ---------------------------
 
+    // ----- Phase 5: shared SSE streaming turn (one implementation for
+    // chat / edit / regenerate; the Phase 6 coding tool reuses it too) -----
+
+    // Appends a live trace container above the loading dots (or at the end
+    // of the stream when the dots are not showing).
+    function mountTrace() {
+        var trace = AssistantTrace.create();
+        var el = trace.begin();
+        if (loadingEl) {
+            messagesContainer.insertBefore(el, loadingEl);
+        } else {
+            messagesContainer.appendChild(el);
+        }
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return trace;
+    }
+
+    // Parses an SSE response body, invoking onEvent(name, dataString) per event.
+    function consumeSse(response, onEvent) {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+
+        function processBlock(block) {
+            var eventName = 'message';
+            var dataLines = [];
+            block.split('\n').forEach(function (line) {
+                if (line.indexOf('event:') === 0) {
+                    eventName = line.slice(6).trim();
+                } else if (line.indexOf('data:') === 0) {
+                    dataLines.push(line.slice(5).trim());
+                }
+            });
+            if (dataLines.length) onEvent(eventName, dataLines.join('\n'));
+        }
+
+        function pump() {
+            return reader.read().then(function (chunk) {
+                if (chunk.done) {
+                    if (buffer.trim()) processBlock(buffer);
+                    return;
+                }
+                buffer += decoder.decode(chunk.value, { stream: true });
+                var idx;
+                while ((idx = buffer.indexOf('\n\n')) !== -1) {
+                    processBlock(buffer.slice(0, idx));
+                    buffer = buffer.slice(idx + 2);
+                }
+                return pump();
+            });
+        }
+        return pump();
+    }
+
+    // Runs one assistant turn against the streaming endpoint, driving a live
+    // trace; falls back to the legacy JSON endpoints if streaming fails.
+    // onReply(reply) handles the final AssistantReply; onFail() handles errors.
+    function streamTurn(payload, onReply, onFail) {
+        var trace = mountTrace();
+
+        var finishOk = function (reply) {
+            trace.collapse();
+            onReply(reply);
+        };
+        var finishBad = function () {
+            trace.fail();
+            trace.collapse();
+            onFail();
+        };
+
+        fetch('/assistant/chat/stream', {
+            method: 'POST',
+            headers: csrfHeaders({ 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }),
+            body: JSON.stringify(payload)
+        })
+            .then(function (r) {
+                if (!r.ok || !r.body || !window.TextDecoder) {
+                    throw new Error('stream unavailable');
+                }
+                return consumeSse(r, function (eventName, data) {
+                    if (eventName === 'step') {
+                        try {
+                            var step = JSON.parse(data);
+                            if (step && step.text) trace.start(step.text);
+                        } catch (e) { /* malformed step — ignore */ }
+                    } else if (eventName === 'reply') {
+                        finishOk(JSON.parse(data));
+                    }
+                });
+            })
+            .catch(function () {
+                // Legacy fallback: same turn against the non-streaming
+                // endpoints, so the turn is never lost to a transport issue.
+                var legacyPayload = {};
+                Object.keys(payload).forEach(function (k) {
+                    if (k !== 'mode') legacyPayload[k] = payload[k];
+                });
+                var endpoint = payload.mode === 'edit' ? '/assistant/edit'
+                    : payload.mode === 'regenerate' ? '/assistant/regenerate'
+                    : '/assistant/chat';
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify(legacyPayload)
+                })
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('Request failed');
+                        return r.json();
+                    })
+                    .then(finishOk)
+                    .catch(finishBad);
+            });
+    }
+
     function sendMessage() {
         var text = inputEl.value.trim();
         if (!text || sendInFlight) return;
@@ -574,25 +678,15 @@
     // query AND the replies it produced are deleted server-side and the
     // edited text is serviced as a fresh turn.
     var editing = !!pendingEditOriginal;
-    var endpoint = editing ? '/assistant/edit' : '/assistant/chat';
     var payload = editing
-        ? { message: text, originalMessage: pendingEditOriginal }
-        : { message: text };
+        ? { message: text, originalMessage: pendingEditOriginal, mode: 'edit' }
+        : { message: text, mode: 'chat' };
     if (currentConversationId) payload.conversationId = currentConversationId;
     pendingEditOriginal = null; // consumed — Escape/normal send reset the mode
     inputEl.classList.remove('editing');
     inputEl.placeholder = 'Ask a question...';
 
-    fetch(endpoint, {
-            method: 'POST',
-            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(payload)
-        })
-        .then(function (r) {
-            if (!r.ok) throw new Error('Request failed');
-            return r.json();
-        })
-        .then(function (reply) {
+    streamTurn(payload, function (reply) {
             setLoading(false);
             sendInFlight = false;
             // The server tells us which thread the turn persisted into.
@@ -608,8 +702,7 @@
             // and refresh the sidebar/overlay lists (title derived).
             loadConversationMessages();
             refreshHistoryLists();
-        })
-        .catch(function () {
+        }, function () {
             setLoading(false);
             sendInFlight = false;
             showError('Failed to get a response. Please try again.');

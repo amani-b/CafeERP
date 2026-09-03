@@ -126,9 +126,21 @@ public class AssistantService {
      */
     public AssistantReply processMessage(User user, String userMessage, Long conversationId,
                                          AgenticAutonomy autonomy) {
+        return processMessage(user, userMessage, conversationId, autonomy, AssistantTraceListener.NOOP);
+    }
+
+    /**
+     * Trace-aware variant (Phase 5): the listener receives a human-readable
+     * status line for every step the assistant takes (each tool call) as it
+     * happens, so the UI can stream "what the AI is doing" while the turn
+     * is still in flight.
+     */
+    public AssistantReply processMessage(User user, String userMessage, Long conversationId,
+                                         AgenticAutonomy autonomy, AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
-        AssistantReply reply = processMessageInConversation(user, userMessage, conversation, mode);
+        AssistantReply reply = processMessageInConversation(user, userMessage, conversation, mode,
+                null, trace == null ? AssistantTraceListener.NOOP : trace);
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
     }
 
@@ -143,6 +155,15 @@ public class AssistantService {
     @Transactional
     public AssistantReply regenerateMessage(User user, String originalMessage, String feedback,
                                             Long conversationId, AgenticAutonomy autonomy) {
+        return regenerateMessage(user, originalMessage, feedback, conversationId, autonomy,
+                AssistantTraceListener.NOOP);
+    }
+
+    /** Trace-aware regeneration variant (Phase 5). */
+    @Transactional
+    public AssistantReply regenerateMessage(User user, String originalMessage, String feedback,
+                                            Long conversationId, AgenticAutonomy autonomy,
+                                            AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
         // The user is replacing the AI's previous answer(s): delete the
@@ -150,7 +171,7 @@ public class AssistantService {
         // STAYS), then generate a fresh one.
         deleteRepliesToOriginalTurn(conversation, originalMessage);
         AssistantReply reply = processMessageInConversation(user, originalMessage, conversation, mode,
-                new Regeneration(feedback));
+                new Regeneration(feedback), trace == null ? AssistantTraceListener.NOOP : trace);
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
     }
 
@@ -168,10 +189,20 @@ public class AssistantService {
     @Transactional
     public AssistantReply editAndResend(User user, String originalMessage, String editedMessage,
                                         Long conversationId, AgenticAutonomy autonomy) {
+        return editAndResend(user, originalMessage, editedMessage, conversationId, autonomy,
+                AssistantTraceListener.NOOP);
+    }
+
+    /** Trace-aware edit-and-resend variant (Phase 5). */
+    @Transactional
+    public AssistantReply editAndResend(User user, String originalMessage, String editedMessage,
+                                        Long conversationId, AgenticAutonomy autonomy,
+                                        AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
         deleteOriginalTurn(conversation, originalMessage);
-        AssistantReply reply = processMessageInConversation(user, editedMessage, conversation, mode, null);
+        AssistantReply reply = processMessageInConversation(user, editedMessage, conversation, mode,
+                null, trace == null ? AssistantTraceListener.NOOP : trace);
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
     }
 
@@ -240,13 +271,23 @@ public class AssistantService {
     private AssistantReply processMessageInConversation(User user, String userMessage,
                                                         AssistantConversation conversation,
                                                         AgenticAutonomy autonomy) {
-        return processMessageInConversation(user, userMessage, conversation, autonomy, null);
+        return processMessageInConversation(user, userMessage, conversation, autonomy, null,
+                AssistantTraceListener.NOOP);
     }
 
     private AssistantReply processMessageInConversation(User user, String userMessage,
                                                         AssistantConversation conversation,
                                                         AgenticAutonomy autonomy,
                                                         Regeneration regen) {
+        return processMessageInConversation(user, userMessage, conversation, autonomy, regen,
+                AssistantTraceListener.NOOP);
+    }
+
+    private AssistantReply processMessageInConversation(User user, String userMessage,
+                                                        AssistantConversation conversation,
+                                                        AgenticAutonomy autonomy,
+                                                        Regeneration regen,
+                                                        AssistantTraceListener trace) {
         boolean regenerating = regen != null;
 
         // 1. Persist the user's message — synchronously, in its own committed
@@ -350,7 +391,7 @@ public class AssistantService {
             }
 
             AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
-                    user, conversation, autonomy);
+                    user, conversation, autonomy, trace);
             if (reply != null) {
                 return reply;
             }
@@ -567,7 +608,8 @@ public class AssistantService {
                                        Set<String> allowedToolNames,
                                        User user,
                                        AssistantConversation conversation,
-                                       AgenticAutonomy autonomy) {
+                                       AgenticAutonomy autonomy,
+                                       AssistantTraceListener trace) {
         log.info("Attempting provider: {} (model: {})", provider.name(), provider.model());
 
         // Deep-copy messages so each provider starts fresh
@@ -676,6 +718,10 @@ public class AssistantService {
                                 pending.getId(), name, pending.getDescription(), args));
                         pendingSummary.append("\n- ").append(pending.getDescription());
 
+                        // Phase 5 — surface the proposed action in the live trace
+                        trace.onStep("Preparing: " + pending.getDescription(), "start");
+                        trace.onStep("Queued for your approval — nothing runs until you confirm.", "done");
+
                         // Feed the model a tool result so it knows the action
                         // is queued (not executed) and can carry on with any
                         // remaining independent tasks in the same turn.
@@ -694,7 +740,9 @@ public class AssistantService {
                     }
 
                     // Low-risk auto execution (only reachable in AUTO_LOW_RISK mode)
+                    trace.onStep(stepStartText(name, args), "start");
                     String autoResult = toolRegistry.execute(name, args, user);
+                    trace.onStep(stepDoneText(autoResult), "done");
                     auditExecuted(user, conversation, name, args, autoResult,
                             AssistantActionLog.TriggerMode.AUTO_EXECUTED);
                     firedToolNames.add(name);
@@ -708,7 +756,9 @@ public class AssistantService {
                 }
 
                 firedToolNames.add(name);
+                trace.onStep(stepStartText(name, args), "start");
                 String result = toolRegistry.execute(name, args, user);
+                trace.onStep(stepDoneText(result), "done");
 
                 Map<String, Object> toolMessage = new HashMap<>();
                 toolMessage.put("role", "tool");
@@ -739,6 +789,64 @@ public class AssistantService {
                 .toList();
 
         return new AssistantReply(fallback, links, conversation.getId(), pendingActions);
+    }
+
+    /**
+     * Human-readable status line for a tool call about to run (Phase 5).
+     * Plain language only — no raw tool names, no parameter blobs. Where the
+     * arguments name a concrete thing (an order id, an item) it is echoed so
+     * the line reads like "Looking up order #482…".
+     */
+    private String stepStartText(String tool, String argsJson) {
+        Map<String, Object> args = parseArgsQuietly(argsJson);
+        Object orderId = args.get("orderId");
+        Object itemName = args.get("itemName");
+        Object username = args.get("username");
+        Object range = args.get("range");
+        return switch (tool) {
+            case "getOrderStatus" -> "Looking up order #" + safe(orderId, "…") + "…";
+            case "getOrderHistory" -> "Checking recent orders" + (username != null ? " for " + username : "") + "…";
+            case "getMenuItems" -> "Checking the menu…";
+            case "getInventoryLevel" -> "Checking inventory for " + safe(itemName, "stock") + "…";
+            case "getSalesTotals" -> "Tallying sales" + (range != null ? " for " + range : "") + "…";
+            case "getTopSellingItems" -> "Finding the best-sellers…";
+            case "getKitchenQueueSummary" -> "Checking the kitchen queue…";
+            case "getUserLoginHistory" -> "Checking sign-in history…";
+            case "getUserSessionActivity" -> "Checking account activity…";
+            case "createOrder" -> "Preparing the new order…";
+            case "updateOrderStatus" -> "Updating order #" + safe(orderId, "…") + "…";
+            case "updateInventory" -> "Updating stock for " + safe(itemName, "item") + "…";
+            case "updateInventoryAlert" -> "Adjusting stock alerts for " + safe(itemName, "item") + "…";
+            case "updateMenuItem" -> "Updating menu item " + safe(itemName, "…") + "…";
+            default -> "Working on it…";
+        };
+    }
+
+    /**
+     * Human-readable completion line for a finished tool call: "Done — …"
+     * followed by the first line of the (usually short, textual) tool result,
+     * so the user sees the outcome without raw payloads.
+     */
+    private static String stepDoneText(String result) {
+        String line = result == null ? "" : result.strip().lines().findFirst().orElse("");
+        if (line.length() > 120) {
+            line = line.substring(0, 117) + "…";
+        }
+        return line.isEmpty() ? "Done." : "Done — " + line;
+    }
+
+    private Map<String, Object> parseArgsQuietly(String argsJson) {
+        try {
+            return objectMapper.readValue(argsJson == null ? "{}" : argsJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() { });
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private static String safe(Object value, String fallback) {
+        String s = value == null ? null : String.valueOf(value).trim();
+        return (s == null || s.isEmpty()) ? fallback : s;
     }
 
     /**
