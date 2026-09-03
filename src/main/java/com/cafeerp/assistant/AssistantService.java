@@ -39,6 +39,8 @@ public class AssistantService {
     private final DeterministicFallbackHandler fallbackHandler;
     private final AssistantAccessGuard accessGuard;
     private final AssistantActionLogRepository actionLogRepository;
+    /** Phase 5 sidebar polish: AI summary titles for conversations. */
+    private final AssistantTitleService titleService;
 
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantConversationRepository conversationRepository,
@@ -48,7 +50,8 @@ public class AssistantService {
                             AssistantConfigProperties configProperties,
                             DeterministicFallbackHandler fallbackHandler,
                             AssistantAccessGuard accessGuard,
-                            AssistantActionLogRepository actionLogRepository) {
+                            AssistantActionLogRepository actionLogRepository,
+                            AssistantTitleService titleService) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.toolRegistry = toolRegistry;
@@ -57,6 +60,7 @@ public class AssistantService {
         this.fallbackHandler = fallbackHandler;
         this.accessGuard = accessGuard;
         this.actionLogRepository = actionLogRepository;
+        this.titleService = titleService;
 
         // Build ordered provider list from configuration
         this.providers = configProperties.getProviders().stream()
@@ -393,6 +397,10 @@ public class AssistantService {
             AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
                     user, conversation, autonomy, trace);
             if (reply != null) {
+                // Sidebar polish: once the first AI turn lands, swap the
+                // derived placeholder title for a short AI summary (async,
+                // after commit; no-op when already summarized).
+                titleService.maybeGenerateTitleAsync(conversation, userMessage, reply.text());
                 return reply;
             }
         }
@@ -404,6 +412,7 @@ public class AssistantService {
             log.debug("Tier 2 matched query for user '{}': pattern={}",
                     user.getUsername(), userMessage);
             saveMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text(), conversation);
+            titleService.maybeGenerateTitleAsync(conversation, userMessage, tier2Reply.text());
             return tier2Reply;
         }
 
