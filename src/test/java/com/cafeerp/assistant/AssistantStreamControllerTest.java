@@ -111,4 +111,66 @@ class AssistantStreamControllerTest {
         org.junit.jupiter.api.Assertions.assertTrue(body.contains("Order #482 is PENDING."),
                 "reply event should carry the full reply JSON: " + body);
     }
+
+    @Test
+    @WithMockUser(username = "staff1", roles = "STAFF")
+    void streamAction_confirm_shouldEmitStepsThenReply() throws Exception {
+        User staff = new User("staff1", "pass", Role.STAFF);
+        when(userRepository.findByUsername("staff1")).thenReturn(java.util.Optional.of(staff));
+
+        when(assistantService.confirmPendingAction(eq(staff), eq(7L), ArgumentMatchers.<Long>isNull(),
+                any()))
+                .thenAnswer(invocation -> {
+                    AssistantTraceListener trace = invocation.getArgument(3);
+                    trace.onStep("Running: Change status of order #12 to READY.", "start");
+                    trace.onStep("Done — status is now READY.", "done");
+                    return new AssistantReply("✅ Done — status changed.", List.of());
+                });
+
+        MvcResult result = mockMvc.perform(post("/assistant/actions/7/stream")
+                        .with(SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verb\":\"confirm\"}"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        result.getAsyncResult(5000);
+
+        String body = mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("event:step"),
+                "stream should contain step events: " + body);
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("Running: Change status"),
+                "stream should describe the action in plain language: " + body);
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("event:reply"),
+                "stream should end with a reply event: " + body);
+    }
+
+    @Test
+    @WithMockUser(username = "staff1", roles = "STAFF")
+    void streamAction_whenActionGone_shouldEmitErrorEvent() throws Exception {
+        User staff = new User("staff1", "pass", Role.STAFF);
+        when(userRepository.findByUsername("staff1")).thenReturn(java.util.Optional.of(staff));
+        when(assistantService.confirmPendingAction(eq(staff), eq(99L), ArgumentMatchers.<Long>isNull(),
+                any()))
+                .thenThrow(new IllegalArgumentException("Pending action not found"));
+
+        MvcResult result = mockMvc.perform(post("/assistant/actions/99/stream")
+                        .with(SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verb\":\"confirm\"}"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        result.getAsyncResult(5000);
+
+        String body = mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("event:error"),
+                "gone action should emit an error event: " + body);
+    }
 }

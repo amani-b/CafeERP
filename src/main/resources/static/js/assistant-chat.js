@@ -550,11 +550,14 @@
     // chat / edit / regenerate; the Phase 6 coding tool reuses it too) -----
 
     // Appends a live trace container above the loading dots (or at the end
-    // of the stream when the dots are not showing).
-    function mountTrace() {
+    // of the stream when the dots are not showing). `host` lets the action
+    // cards mount the trace inside themselves instead of the message stream.
+    function mountTrace(host) {
         var trace = AssistantTrace.create();
         var el = trace.begin();
-        if (loadingEl) {
+        if (host) {
+            host.appendChild(el);
+        } else if (loadingEl) {
             messagesContainer.insertBefore(el, loadingEl);
         } else {
             messagesContainer.appendChild(el);
@@ -600,23 +603,33 @@
         return pump();
     }
 
-    // Runs one assistant turn against the streaming endpoint, driving a live
+    // Runs one assistant turn against a streaming endpoint, driving a live
     // trace; falls back to the legacy JSON endpoints if streaming fails.
-    // onReply(reply) handles the final AssistantReply; onFail() handles errors.
-    function streamTurn(payload, onReply, onFail) {
-        var trace = mountTrace();
+    // onReply(reply) handles the final AssistantReply; onFail(errorText)
+    // handles errors. Optional `endpoints` lets the confirm/cancel card flow
+    // reuse this exact machinery against /assistant/actions/{id}/stream.
+    function streamTurn(payload, onReply, onFail, endpoints) {
+        endpoints = endpoints || {};
+        var streamUrl = endpoints.stream || '/assistant/chat/stream';
+        var legacyUrl = endpoints.legacyUrl
+            || (payload.mode === 'edit' ? '/assistant/edit'
+                : payload.mode === 'regenerate' ? '/assistant/regenerate'
+                : '/assistant/chat');
+        var legacyBody = endpoints.legacyBody || legacyPayloadFrom(payload);
+
+        var trace = mountTrace(endpoints.host);
 
         var finishOk = function (reply) {
             trace.collapse();
             onReply(reply);
         };
-        var finishBad = function () {
+        var finishBad = function (errorText) {
             trace.fail();
             trace.collapse();
-            onFail();
+            onFail(errorText);
         };
 
-        fetch('/assistant/chat/stream', {
+        fetch(streamUrl, {
             method: 'POST',
             headers: csrfHeaders({ 'Content-Type': 'application/json', 'Accept': 'text/event-stream' }),
             body: JSON.stringify(payload)
@@ -633,31 +646,38 @@
                         } catch (e) { /* malformed step — ignore */ }
                     } else if (eventName === 'reply') {
                         finishOk(JSON.parse(data));
+                    } else if (eventName === 'error') {
+                        var text = null;
+                        try { text = JSON.parse(data).text; } catch (e) { /* keep null */ }
+                        finishBad(text);
                     }
                 });
             })
             .catch(function () {
                 // Legacy fallback: same turn against the non-streaming
                 // endpoints, so the turn is never lost to a transport issue.
-                var legacyPayload = {};
-                Object.keys(payload).forEach(function (k) {
-                    if (k !== 'mode') legacyPayload[k] = payload[k];
-                });
-                var endpoint = payload.mode === 'edit' ? '/assistant/edit'
-                    : payload.mode === 'regenerate' ? '/assistant/regenerate'
-                    : '/assistant/chat';
-                fetch(endpoint, {
+                fetch(legacyUrl, {
                     method: 'POST',
                     headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify(legacyPayload)
+                    body: JSON.stringify(legacyBody)
                 })
                     .then(function (r) {
                         if (!r.ok) throw new Error('Request failed');
                         return r.json();
                     })
                     .then(finishOk)
-                    .catch(finishBad);
+                    .catch(function () { finishBad(null); });
             });
+    }
+
+    // Strips transport-only fields (mode) from the streamed payload so it
+    // matches the shape the legacy JSON endpoints expect.
+    function legacyPayloadFrom(payload) {
+        var legacy = {};
+        Object.keys(payload).forEach(function (k) {
+            if (k !== 'mode' && k !== 'verb') legacy[k] = payload[k];
+        });
+        return legacy;
     }
 
     function sendMessage() {
@@ -790,21 +810,19 @@
             .catch(function () { /* non-fatal: cards also render from the reply */ });
     }
 
+    // Confirm / cancel a pending action through the shared streaming turn
+    // machinery (Phase 5): the card shows a live trace while the action
+    // runs, which collapses into an expandable steps affordance once the
+    // reply lands. Falls back to the legacy JSON endpoints transparently.
     function resolvePendingAction(actionId, verb, card) {
         var buttons = card.querySelectorAll('button');
         buttons.forEach(function (b) { b.disabled = true; });
         var body = currentConversationId
             ? { conversationId: String(currentConversationId) } : {};
-        fetch('/assistant/actions/' + actionId + '/' + verb, {
-            method: 'POST',
-            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(body)
-        })
-            .then(function (r) {
-                if (!r.ok) throw new Error('action ' + verb + ' failed');
-                return r.json();
-            })
-            .then(function (reply) {
+
+        streamTurn(
+            Object.assign({}, body, { verb: verb }),
+            function (reply) {
                 if (reply.conversationId) currentConversationId = reply.conversationId;
                 card.classList.add('resolved');
                 var note = document.createElement('div');
@@ -813,10 +831,17 @@
                 card.appendChild(note);
                 loadConversationMessages();
                 refreshHistoryLists();
-            })
-            .catch(function () {
+            },
+            function (errorText) {
                 buttons.forEach(function (b) { b.disabled = false; });
-                showError('Could not ' + verb + ' the action. Please try again.');
+                showError(errorText
+                    || ('Could not ' + verb + ' the action. Please try again.'));
+            },
+            {
+                host: card,
+                stream: '/assistant/actions/' + actionId + '/stream',
+                legacyUrl: '/assistant/actions/' + actionId + '/' + verb,
+                legacyBody: body
             });
     }
 
