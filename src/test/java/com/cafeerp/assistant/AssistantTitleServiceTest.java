@@ -42,6 +42,7 @@ class AssistantTitleServiceTest {
         when(provider.url()).thenReturn("https://example.test/v1");
         when(provider.apiKey()).thenReturn("key");
         when(provider.model()).thenReturn("test-model");
+        when(provider.effectiveTitleModel()).thenReturn("test-title-model");
 
         client = mock(ChatCompletionClient.class);
         conversationRepository = mock(AssistantConversationRepository.class);
@@ -74,6 +75,44 @@ class AssistantTitleServiceTest {
     }
 
     @Test
+    void sanitizeTitle_keepsMildOvershoot_rejectsRunawayWordCounts() {
+        // 8 words: mildly over the 3-6 brief — kept (and length-capped).
+        assertEquals("one two three four five six seven eight",
+                AssistantTitleService.sanitizeTitle("one two three four five six seven eight"));
+        // 13 words: wildly outside the brief — rejected rather than trusted.
+        assertNull(AssistantTitleService.sanitizeTitle(
+                "one two three four five six seven eight nine ten eleven twelve thirteen"));
+    }
+
+    @Test
+    void summarize_usesSmallTitleModel_withRoomyTokenBudget() throws Exception {
+        String question = "What is the status of order 482?";
+        AssistantConversation conversation = mock(AssistantConversation.class);
+        when(conversation.getId()).thenReturn(1L);
+        when(conversation.getTitle()).thenReturn(AssistantConversation.deriveTitle(question));
+        when(conversationRepository.findById(1L)).thenReturn(Optional.of(conversation));
+        when(client.post(anyString(), anyString(), anyString()))
+                .thenReturn(ok("Checking order 482 status"));
+
+        titleService.maybeGenerateTitleAsync(conversation, question, "It is READY.");
+        verify(conversation, timeout(5000)).setTitle("Checking order 482 status");
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(client, timeout(5000)).post(anyString(), anyString(), body.capture());
+        // The small/fast title model — NOT the tool-calling chat model.
+        assertTrue(body.getValue().contains("\"model\":\"test-title-model\""),
+                "title calls must use the dedicated small title model: " + body.getValue());
+        assertTrue(body.getValue().contains("\"model\":\"test-model\"") == false,
+                "title calls must never use the main chat model: " + body.getValue());
+        // Roomy completion budget: a tiny cap (e.g. 32) starves reasoning
+        // models and returns empty content — the original silent killer.
+        assertTrue(body.getValue().contains("\"max_tokens\":512"),
+                "title calls need a reasoning-safe completion budget: " + body.getValue());
+        assertTrue(body.getValue().contains("\"max_tokens\":32,") == false,
+                "the starved 32-token budget must stay gone: " + body.getValue());
+    }
+
+    @Test
     void liveHook_placeholderTitle_generatesAndSavesSummary() throws Exception {
         String question = "What is the status of order 482?";
         AssistantConversation conversation = mock(AssistantConversation.class);
@@ -101,6 +140,33 @@ class AssistantTitleServiceTest {
         titleService.maybeGenerateTitleAsync(conversation, "Some question", "Some answer");
         verify(conversationRepository, timeout(500).times(0))
                 .save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void backfill_untitledConversationWithMessages_getsRealTitle() throws Exception {
+        String question = "Which syrups are we out of?";
+        // Untitled (null title) but with a real exchange — backfill must
+        // treat it as needing a title, not skip it as "never used".
+        AssistantConversation conversation =
+                new AssistantConversation(new User("staff9", "p", Role.STAFF));
+        conversation.setId(77L);
+
+        AssistantMessage questionMessage = new AssistantMessage(
+                conversation.getUser(), AssistantMessageRole.USER, question, conversation);
+        AssistantMessage replyMessage = new AssistantMessage(
+                conversation.getUser(), AssistantMessageRole.ASSISTANT,
+                "Hazelnut and vanilla.", conversation);
+        when(conversationRepository.findAll()).thenReturn(List.of(conversation));
+        when(messageRepository.findByConversationOrderByCreatedAtAscIdAsc(conversation))
+                .thenReturn(List.of(questionMessage, replyMessage));
+        when(conversationRepository.findById(77L)).thenReturn(Optional.of(conversation));
+        when(client.post(anyString(), anyString(), anyString()))
+                .thenReturn(ok("Syrup stock shortage"));
+
+        int updated = titleService.backfillTitles();
+
+        assertEquals(1, updated);
+        assertEquals("Syrup stock shortage", conversation.getTitle());
     }
 
     @Test
