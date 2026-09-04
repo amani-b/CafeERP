@@ -28,6 +28,7 @@ public class AssistantConfigProperties {
         private String baseUrl;
         private String apiKeyEnvVar;
         private String model;
+        private String titleModel;
         private boolean supportsMinTokens = true;
 
         public String getName() { return name; }
@@ -38,6 +39,9 @@ public class AssistantConfigProperties {
         public void setApiKeyEnvVar(String apiKeyEnvVar) { this.apiKeyEnvVar = apiKeyEnvVar; }
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
+        /** Small/fast model used ONLY for sidebar-title summarization (optional). */
+        public String getTitleModel() { return titleModel; }
+        public void setTitleModel(String titleModel) { this.titleModel = titleModel; }
         public boolean isSupportsMinTokens() { return supportsMinTokens; }
         public void setSupportsMinTokens(boolean supportsMinTokens) { this.supportsMinTokens = supportsMinTokens; }
     }
