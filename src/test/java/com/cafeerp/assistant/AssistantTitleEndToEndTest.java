@@ -54,6 +54,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
         "assistant.providers[0].apiKeyEnvVar=PATH", // always set => hasApiKey() true
         "assistant.providers[0].model=test-model",
         "assistant.providers[0].supportsMinTokens=false",
+        // NOTE: a subclass @SpringBootTest properties list REPLACES the base
+        // class's, so the backfill-disable flag must be repeated here — the
+        // backfill pass below is invoked ON DEMAND by these tests.
+        "assistant.title.backfill-enabled=false",
         "logging.level.com.cafeerp=DEBUG"
 })
 public class AssistantTitleEndToEndTest extends AbstractIntegrationTest {
@@ -103,17 +107,33 @@ public class AssistantTitleEndToEndTest extends AbstractIntegrationTest {
     void firstReply_swapsRawMessageTitleForAiSummary_live() throws Exception {
         MockHttpSession staff = login("staff", PLACEHOLDER_PASSWORD);
 
+        // Explicitly start a NEW thread (what "New chat" does). A turn without
+        // a conversationId would land in the user's MOST RECENT existing
+        // conversation — and the shared test database may hold one from an
+        // earlier test class, silently defeating the "new conversation"
+        // premise of this test.
+        MvcResult created = mockMvc.perform(post("/assistant/conversations").session(staff)
+                        .with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> convo = new ObjectMapper().readValue(
+                created.getResponse().getContentAsString(), Map.class);
+        long conversationId = ((Number) convo.get("id")).longValue();
+
         // --- the turn itself: normal chat must keep working ---
         MvcResult chatResult = mockMvc.perform(post("/assistant/chat").session(staff)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(Map.of("message", LIVE_QUESTION))))
+                        .content(toJson(Map.of("message", LIVE_QUESTION,
+                                "conversationId", String.valueOf(conversationId)))))
                 .andExpect(status().isOk())
                 .andReturn();
         Map<?, ?> reply = new ObjectMapper().readValue(
                 chatResult.getResponse().getContentAsString(), Map.class);
         assertEquals(LIVE_REPLY, reply.get("text"),
                 "the AI chat reply must be untouched by the title feature");
-        long conversationId = ((Number) reply.get("conversationId")).longValue();
+        assertEquals(conversationId, ((Number) reply.get("conversationId")).longValue(),
+                "the turn must land in the explicitly requested thread");
 
         // --- title pipeline: raw first message -> real AI summary ---
         String before = titleOf(staff, conversationId);
@@ -152,9 +172,11 @@ public class AssistantTitleEndToEndTest extends AbstractIntegrationTest {
                 + " (conversationId=" + conversationId + ")");
         assertEquals(BACKFILL_TITLE, after,
                 "backfill must swap the raw message title for the AI summary");
-        // Either this direct run titled it, or the scheduled startup pass got
-        // there first — both prove the same pipeline end-to-end.
-        assertTrue(updatedThisRun <= 1);
+        // This direct run titles at least THIS conversation; the shared H2
+        // database may hold other raw-titled conversations from earlier test
+        // classes, which this continuous pass legitimately drains too.
+        assertTrue(updatedThisRun >= 1,
+                "the on-demand backfill pass must have titled the new conversation");
     }
 
     // ------------------------------ helpers ------------------------------
