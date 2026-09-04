@@ -48,6 +48,9 @@ import com.cafeerp.AbstractIntegrationTest;
         "assistant.providers[0].apiKeyEnvVar=PATH", // always set => hasApiKey() true
         "assistant.providers[0].model=test-model",
         "assistant.providers[0].supportsMinTokens=false",
+        // NOTE: a subclass @SpringBootTest properties list REPLACES the base
+        // class's, so the backfill-disable flag must be repeated here.
+        "assistant.title.backfill-enabled=false",
         "logging.level.com.cafeerp=DEBUG"
 })
 @AutoConfigureMockMvc
@@ -117,10 +120,17 @@ public class AssistantLoggingTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertThat(messages).contains("ai path canary two").contains("AI-REPLY-FOR-LOGGING-TEST");
 
-        // And the thread title was derived from the first user message.
+        // And the thread itself shows up in the user's conversation list.
+        // NOTE: we assert on the thread's IDENTITY, not its title text — the
+        // AI summary title is applied asynchronously and may already have
+        // replaced the raw first-message placeholder by the time this runs
+        // (that swap is covered deterministically by
+        // AssistantTitleEndToEndTest / AssistantTitleServiceTest).
         String list = mockMvc.perform(get("/assistant/conversations").session(staff))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(list).contains("ai path canary two");
+        assertThat(list)
+                .as("the conversation created for this turn must be listed for its owner")
+                .contains("{\"id\":" + conversationId + ",");
     }
 
     @Test
