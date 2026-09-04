@@ -69,7 +69,8 @@ public class AssistantService {
                         pc.getBaseUrl(),
                         pc.getApiKeyEnvVar(),
                         pc.getModel(),
-                        pc.isSupportsMinTokens()))
+                        pc.isSupportsMinTokens(),
+                        pc.getTitleModel()))
                 .toList();
     }
 
@@ -312,6 +313,8 @@ public class AssistantService {
             log.info("Assistant access guard blocked restricted topic for user '{}'", user.getUsername());
             AssistantReply denial = new AssistantReply(decision.denialText(), List.of());
             saveMessage(user, AssistantMessageRole.ASSISTANT, denial.text(), conversation);
+            // First turn of a thread can end here — title it like any other turn.
+            titleService.maybeGenerateTitleAsync(conversation, userMessage, denial.text());
             return denial;
         }
 
@@ -329,6 +332,9 @@ public class AssistantService {
             AssistantReply tier2Reply = fallbackHandler.tryAnswer(userMessage, user.getRole());
             if (tier2Reply != null) {
                 saveMessage(user, AssistantMessageRole.ASSISTANT, tier2Reply.text(), conversation);
+                // Deterministic answers are real first turns too — fire the
+                // same async title hook (no-op when already summarized).
+                titleService.maybeGenerateTitleAsync(conversation, userMessage, tier2Reply.text());
                 return tier2Reply;
             }
             // Deterministic handler declined (shouldn't happen if shouldRouteToDeterministicFirst returned true,

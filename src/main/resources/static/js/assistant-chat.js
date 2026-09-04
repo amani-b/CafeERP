@@ -25,6 +25,7 @@
     var sendInFlight = false;    // guards the history-render race
     var pendingHistoryRefresh = false;
     var pendingEditOriginal = null; // set while the user is editing a previous query
+    var pendingSeed = null;      // heuristic sidebar title awaiting the real conversation id
 
     // Shared history-list mount points: the fullscreen sidebar and the
     // compact overlay. ONE renderer feeds both — no duplicated logic.
@@ -682,6 +683,54 @@
             });
     }
 
+    // Heuristic sidebar placeholder for brand-new conversations: the first
+    // few words of the first message, shown INSTANTLY while the turn is in
+    // flight, then swapped in place for the real AI 3-6 word summary title
+    // the moment the server's title event arrives.
+    function heuristicTitle(text) {
+        var words = String(text).replace(/\s+/g, ' ').trim().split(' ');
+        var title = words.slice(0, 5).join(' ');
+        if (title.length > 40) {
+            title = title.slice(0, 40);
+            var cut = title.lastIndexOf(' ');
+            if (cut > 20) title = title.slice(0, cut);
+        }
+        return title;
+    }
+
+    function seedSidebarPlaceholder(text) {
+        var title = heuristicTitle(text);
+        if (!title) return;
+        pendingSeed = title;
+        historyMounts.forEach(function (mount) {
+            if (!mount.list) return;
+            if (mount.list.querySelector('.assistant-history-item[data-pending="1"]')) return;
+            var item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'assistant-history-item active';
+            item.setAttribute('data-conversation-id', 'pending');
+            item.setAttribute('data-pending', '1');
+            item.textContent = title;
+            mount.list.insertBefore(item, mount.list.firstChild);
+        });
+    }
+
+    // The server assigns the real id when the turn persists; re-point the
+    // seeded items so later title events can find and rename them in place.
+    function adoptSeededPlaceholder(conversationId) {
+        if (!pendingSeed || !conversationId) return;
+        var items = document.querySelectorAll('.assistant-history-item[data-pending="1"]');
+        if (!items.length) {
+            pendingSeed = null; // a refresh already replaced them with server truth
+            return;
+        }
+        for (var i = 0; i < items.length; i++) {
+            items[i].setAttribute('data-conversation-id', conversationId);
+            items[i].removeAttribute('data-pending');
+        }
+        pendingSeed = null;
+    }
+
     // Updates the sidebar's name for a conversation in place (both the
     // fullscreen sidebar and the compact overlay list), preserving any
     // "Archived" badge. Falls back to a full history refresh when the item
@@ -739,11 +788,21 @@
     inputEl.classList.remove('editing');
     inputEl.placeholder = 'Ask a question...';
 
+    // Brand-new thread: it is created server-side by this very turn, so
+    // seed the sidebar with a heuristic placeholder right now — swapped
+    // for the AI summary title when the stream's title event lands.
+    if (!currentConversationId && !editing) {
+        seedSidebarPlaceholder(text);
+    }
+
     streamTurn(payload, function (reply) {
             setLoading(false);
             sendInFlight = false;
             // The server tells us which thread the turn persisted into.
-            if (reply.conversationId) currentConversationId = reply.conversationId;
+            if (reply.conversationId) {
+                adoptSeededPlaceholder(reply.conversationId);
+                currentConversationId = reply.conversationId;
+            }
             addAssistantMessageWithReveal(reply.text, reply.links || []);
             if (reply.pendingActions && reply.pendingActions.length) {
                 reply.pendingActions.forEach(renderPendingActionCard);
