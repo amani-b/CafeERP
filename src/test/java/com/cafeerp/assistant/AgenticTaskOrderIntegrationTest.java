@@ -47,7 +47,10 @@ import com.cafeerp.user.UserService;
         "assistant.providers[0].baseUrl=https://api.invalid.invalid/v1",
         "assistant.providers[0].apiKeyEnvVar=PATH", // always set => hasApiKey() true
         "assistant.providers[0].model=test-model",
-        "assistant.providers[0].supportsMinTokens=false"
+        "assistant.providers[0].supportsMinTokens=false",
+        // NOTE: a subclass @SpringBootTest properties list REPLACES the base
+        // class's, so the backfill-disable flag must be repeated here.
+        "assistant.title.backfill-enabled=false"
 })
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

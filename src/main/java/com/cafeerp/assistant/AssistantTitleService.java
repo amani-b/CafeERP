@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -79,6 +80,13 @@ public class AssistantTitleService {
 
     /** Bounded backfill concurrency against the free-tier providers. */
     static final int BACKFILL_CONCURRENCY = 5;
+
+    /**
+     * Master switch for the SCHEDULED backfill trigger only. On-demand
+     * (direct) calls to {@link #backfillTitles()} are unaffected, so the
+     * pass can still be run manually or from a test. Default: enabled.
+     */
+    private final boolean scheduledBackfillEnabled;
 
     /** Whole-run budget for one backfill pass so a stuck call can't stall it. */
     static final long BACKFILL_BUDGET_MS = 10 * 60_000L;
@@ -141,9 +149,11 @@ public class AssistantTitleService {
                                  ChatCompletionClient chatCompletionClient,
                                  AssistantConversationRepository conversationRepository,
                                  AssistantMessageRepository messageRepository,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 @Value("${assistant.title.backfill-enabled:true}")
+                                 boolean scheduledBackfillEnabled) {
         this(fromConfig(configProperties), chatCompletionClient,
-                conversationRepository, messageRepository, objectMapper);
+                conversationRepository, messageRepository, objectMapper, scheduledBackfillEnabled);
     }
 
     /** Secondary constructor (unit tests inject a provider list directly). */
@@ -152,11 +162,22 @@ public class AssistantTitleService {
                                  AssistantConversationRepository conversationRepository,
                                  AssistantMessageRepository messageRepository,
                                  ObjectMapper objectMapper) {
+        this(providers, chatCompletionClient, conversationRepository,
+                messageRepository, objectMapper, true);
+    }
+
+    public AssistantTitleService(List<ModelProvider> providers,
+                                 ChatCompletionClient chatCompletionClient,
+                                 AssistantConversationRepository conversationRepository,
+                                 AssistantMessageRepository messageRepository,
+                                 ObjectMapper objectMapper,
+                                 boolean scheduledBackfillEnabled) {
         this.providers = providers == null ? List.of() : List.copyOf(providers);
         this.chatCompletionClient = chatCompletionClient;
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.objectMapper = objectMapper;
+        this.scheduledBackfillEnabled = scheduledBackfillEnabled;
     }
 
     private static List<ModelProvider> fromConfig(AssistantConfigProperties configProperties) {
@@ -241,6 +262,21 @@ public class AssistantTitleService {
     }
 
     /**
+     * Scheduled trigger for the startup/periodic backfill pass. Gated by
+     * {@code assistant.title.backfill-enabled} (default on) so embedders and
+     * hermetic tests can run the pass purely on demand — a background job
+     * that mutates shared state on a 5-minute timer is hostile to tests and
+     * surprised nobody by firing mid-assertion.
+     */
+    @Scheduled(fixedDelay = 300_000, initialDelay = 5_000)
+    public void scheduledBackfillTitles() {
+        if (!scheduledBackfillEnabled) {
+            return;
+        }
+        backfillTitles();
+    }
+
+    /**
      * Backfill for all previous chatrooms: finds conversations still carrying
      * their derived placeholder title (or no title at all despite having
      * messages) and summarizes them. Runs 5s after startup (so legacy threads
@@ -251,14 +287,14 @@ public class AssistantTitleService {
      *
      * @return number of conversations given a summary title this run
      */
-    @Scheduled(fixedDelay = 300_000, initialDelay = 5_000)
     public int backfillTitles() {
-        List<AssistantConversation> candidates = new ArrayList<>();
+        List<BackfillCandidate> candidates = new ArrayList<>();
         try {
             for (AssistantConversation conversation : conversationRepository.findAll()) {
-                if (conversation != null) {
-                    candidates.add(conversation);
+                if (conversation == null) {
+                    continue;
                 }
+                candidateFor(conversation).ifPresent(candidates::add);
             }
         } catch (Exception e) {
             log.warn("Title backfill could not list conversations: {}", e.getMessage());
@@ -274,12 +310,13 @@ public class AssistantTitleService {
         long deadline = System.currentTimeMillis() + BACKFILL_BUDGET_MS;
         AtomicInteger updated = new AtomicInteger();
         List<Future<?>> inFlight = new ArrayList<>(needed);
-        for (AssistantConversation conversation : candidates) {
+        for (BackfillCandidate candidate : candidates) {
             inFlight.add(backfillExecutor.submit(() -> {
                 if (System.currentTimeMillis() >= deadline) {
                     return; // run budget exhausted — the next run mops up
                 }
-                if (summarizeIfNeeded(conversation)) {
+                if (generateTitle(candidate.conversation().getId(),
+                        candidate.firstUserMessage(), candidate.firstReply())) {
                     updated.incrementAndGet();
                 }
             }));
@@ -300,8 +337,18 @@ public class AssistantTitleService {
         return titled;
     }
 
-    /** One backfill candidate: summarize if still a placeholder (and replyable). */
-    private boolean summarizeIfNeeded(AssistantConversation conversation) {
+    /** One backfill work item: a conversation plus the context to summarize. */
+    private record BackfillCandidate(AssistantConversation conversation,
+                                     String firstUserMessage,
+                                     String firstReply) {}
+
+    /**
+     * TRUE needing-title check: the conversation still carries its raw
+     * derived placeholder (or no title at all) AND has an exchange to
+     * summarize. Filtering here — not inside the worker — keeps the run's
+     * before/after counts honest.
+     */
+    private Optional<BackfillCandidate> candidateFor(AssistantConversation conversation) {
         String title = conversation.getTitle();
         boolean untitled = title == null || title.isBlank();
         List<AssistantMessage> messages =
@@ -319,12 +366,12 @@ public class AssistantTitleService {
             }
         }
         if (firstUserMessage == null) {
-            return false; // never used — nothing to summarize
+            return Optional.empty(); // never used — nothing to summarize
         }
         if (!untitled && !title.equals(AssistantConversation.deriveTitle(firstUserMessage))) {
-            return false; // already summarized
+            return Optional.empty(); // already summarized
         }
-        return generateTitle(conversation.getId(), firstUserMessage, firstReply);
+        return Optional.of(new BackfillCandidate(conversation, firstUserMessage, firstReply));
     }
 
     /**

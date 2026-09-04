@@ -47,6 +47,11 @@ import org.springframework.test.web.servlet.MvcResult;
         "assistant.providers[0].apiKeyEnvVar=CAFEERP_TEST_DEFINITELY_NOT_SET_9XQ",
         "assistant.providers[0].model=test-model",
         "assistant.providers[0].supportsMinTokens=false",
+        // The title backfill runs as a background timer that MUTATES
+        // conversation rows; a scheduler firing mid-assertion makes tests
+        // nondeterministic (seen on CI). Tests invoke the pass on demand
+        // instead — production keeps the timer on (default true).
+        "assistant.title.backfill-enabled=false",
         // --- verbose diagnostics ---
         "logging.level.com.cafeerp=DEBUG"
 })
