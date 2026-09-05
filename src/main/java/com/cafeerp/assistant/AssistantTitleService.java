@@ -101,6 +101,39 @@ public class AssistantTitleService {
             + "labels like \"New chat\" or \"Conversation\"; plain text only — no quotes, no markdown, "
             + "no emoji, no trailing period; at most 6 words. Reply with ONLY the title text and nothing else.";
 
+    /**
+     * Single-round-trip instant titling: on the FIRST turn of a conversation
+     * the chat system prompt carries {@link #TITLE_TAG_INSTRUCTION}, asking
+     * the model to end its (already-paid-for) reply with a delimited title
+     * tag. The tag is parsed and stripped server-side before anything is
+     * persisted or shown, and the title lands in the same DB write window as
+     * the reply itself — no second network round-trip, so the sidebar title
+     * appears at effectively the same moment the reply is confirmed
+     * delivered. Plain completion text only, never routed through the
+     * ERP-knowledge/agentic tool-calling pipeline.
+     */
+    public static final String TITLE_TAG_INSTRUCTION =
+            "Conversation-title instruction (this is the first exchange of a new chat thread): "
+            + "end your FINAL answer with the thread's sidebar title on its own last line, exactly in "
+            + "this form: <title>3 to 6 word summary of the conversation topic</title> "
+            + "Rules for the title: 3 to 6 words, a genuine summary of the topic (never just echo the "
+            + "user's words, never a generic label like \"New chat\"), plain text only — no quotes, "
+            + "no markdown, no emoji, no trailing period. The tag line is stripped before the user sees "
+            + "your answer, so never refer to it in your text. Put the tag ONLY in your final answer "
+            + "text — never inside tool calls.";
+
+    /** Delimited title tag produced by the model in its first-turn reply. */
+    static final java.util.regex.Pattern TITLE_TAG_PATTERN = java.util.regex.Pattern.compile(
+            "<title\\s*>(.+?)</title\\s*>",
+            java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+
+    /**
+     * A first-turn reply with its embedded title tag removed: the text the
+     * user actually sees, plus the sanitized sidebar title (null when the
+     * model emitted no usable title even though a tag was present).
+     */
+    public record InlineTitle(String visibleText, String title) {}
+
     private final List<ModelProvider> providers;
     private final ChatCompletionClient chatCompletionClient;
     private final AssistantConversationRepository conversationRepository;
@@ -372,6 +405,52 @@ public class AssistantTitleService {
             return Optional.empty(); // already summarized
         }
         return Optional.of(new BackfillCandidate(conversation, firstUserMessage, firstReply));
+    }
+
+    /**
+     * Parses a first-turn reply for an embedded {@code <title>…</title>} tag.
+     * Every tag occurrence is stripped from the returned visible text (the
+     * tag must never reach the user or the persisted message); the sidebar
+     * title is the LAST tag's content, run through the same
+     * {@link #sanitizeTitle(String)} guard as second-call titles (null when
+     * nothing usable remains, in which case callers fall back to the async
+     * second-call path). Returns null when the reply carries no tag at all.
+     */
+    public static InlineTitle extractInlineTitle(String rawReply) {
+        if (rawReply == null || !TITLE_TAG_PATTERN.matcher(rawReply).find()) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = TITLE_TAG_PATTERN.matcher(rawReply);
+        String lastCandidate = null;
+        while (matcher.find()) {
+            lastCandidate = matcher.group(1);
+        }
+        String visibleText = TITLE_TAG_PATTERN.matcher(rawReply).replaceAll("").trim();
+        return new InlineTitle(visibleText, sanitizeTitle(lastCandidate));
+    }
+
+    /**
+     * Applies an already-generated (single-round-trip) title synchronously,
+     * in the same window as the reply it arrived with. Also records an
+     * already-completed pending-title future so the SSE stream's
+     * {@code titleFutureFor()} lookup resolves instantly and the
+     * {@code title} event ships in the same stream as the {@code reply}
+     * event. Returns true when the title was applied.
+     */
+    public boolean applyTitleNow(Long conversationId, String newTitle) {
+        if (conversationId == null || newTitle == null || newTitle.isBlank()) {
+            return false;
+        }
+        boolean applied = applyTitle(conversationId, newTitle);
+        if (applied) {
+            log.info("Instant title for conversation {}: \"{}\"", conversationId, newTitle);
+            CompletableFuture<Boolean> done = CompletableFuture.completedFuture(true);
+            pendingTitles.put(conversationId, done);
+            titleJanitor.schedule(
+                    () -> pendingTitles.remove(conversationId, done),
+                    PENDING_TITLE_TTL_SECONDS, TimeUnit.SECONDS);
+        }
+        return applied;
     }
 
     /**
