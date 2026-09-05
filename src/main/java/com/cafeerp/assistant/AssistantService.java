@@ -352,11 +352,25 @@ public class AssistantService {
         // 4. Build the messages array for the API
         List<Map<String, Object>> messages = new ArrayList<>();
 
+        // Single-round-trip instant titling: when this turn still needs its
+        // first summary title (tier-agnostic placeholder check — no role or
+        // permission gating), ask the model to append a delimited
+        // <title> tag to THIS reply. The tag is parsed and stripped
+        // server-side before anything is persisted or shown, so the sidebar
+        // title lands at effectively the same moment as the reply itself —
+        // no second network round-trip. Plain completion text only; the tag
+        // never touches the ERP-knowledge/agentic tool-calling pipeline.
+        boolean needsTitle = isUntitledFor(userMessage, conversation);
+        String systemPrompt = systemPromptForRole(user);
+        if (needsTitle) {
+            systemPrompt = systemPrompt + "\n" + AssistantTitleService.TITLE_TAG_INSTRUCTION;
+        }
+
         // System prompt (role-specific, plus agentic guidance when the user
         // holds AI_AGENTIC_ACTIONS)
         messages.add(Map.of(
             "role", "system",
-            "content", systemPromptForRole(user)
+            "content", systemPrompt
         ));
 
         // Prior conversation (skip the system prompt slot)
@@ -401,12 +415,14 @@ public class AssistantService {
             }
 
             AssistantReply reply = tryProvider(provider, messages, tools, allowedToolNames,
-                    user, conversation, autonomy, trace);
+                    user, conversation, autonomy, trace, userMessage, needsTitle);
             if (reply != null) {
-                // Sidebar polish: once the first AI turn lands, swap the
-                // derived placeholder title for a short AI summary (async,
-                // after commit; no-op when already summarized).
-                titleService.maybeGenerateTitleAsync(conversation, userMessage, reply.text());
+                // Titling is settled inside tryProvider: the instant
+                // single-round-trip <title> tag when this turn needed one,
+                // the async second-call fallback otherwise. Nothing to do
+                // here (and the in-memory conversation title is stale after
+                // an instant apply, so re-checking it here would wrongly
+                // fire a redundant second call).
                 return reply;
             }
         }
@@ -643,7 +659,9 @@ public class AssistantService {
                                        User user,
                                        AssistantConversation conversation,
                                        AgenticAutonomy autonomy,
-                                       AssistantTraceListener trace) {
+                                       AssistantTraceListener trace,
+                                       String userMessage,
+                                       boolean needsTitle) {
         log.info("Attempting provider: {} (model: {})", provider.name(), provider.model());
 
         // Deep-copy messages so each provider starts fresh
@@ -674,6 +692,21 @@ public class AssistantService {
             if (toolCalls == null || toolCalls.isEmpty()) {
                 // Final response — persist and return
                 String finalText = content != null ? content : "";
+                // Instant title: strip any <title> tag before anyone sees
+                // or stores the text (defense in depth: the tag is only
+                // requested on first turns, but a stray tag must never leak
+                // to the user even if the model emits one later). The
+                // sanitized title is applied only when this turn still owes
+                // the conversation its first summary.
+                String instantTitle = null;
+                AssistantTitleService.InlineTitle inline =
+                        AssistantTitleService.extractInlineTitle(finalText);
+                if (inline != null) {
+                    finalText = inline.visibleText();
+                    if (needsTitle) {
+                        instantTitle = inline.title();
+                    }
+                }
                 finalText = appendPendingActionsNote(finalText, pendingActions, pendingSummary);
                 saveMessage(user, AssistantMessageRole.ASSISTANT, finalText, conversation);
 
@@ -686,7 +719,9 @@ public class AssistantService {
                         .distinct()
                         .toList();
 
-                return new AssistantReply(finalText, links, conversation.getId(), pendingActions);
+                AssistantReply done = new AssistantReply(finalText, links, conversation.getId(), pendingActions);
+                settleTitle(conversation, userMessage, done.text(), instantTitle);
+                return done;
             }
 
             // Add the assistant's message with tool_calls to the conversation
@@ -810,6 +845,15 @@ public class AssistantService {
         log.warn("Provider {} hit {} round cap", provider.name(), MAX_TOOL_ROUNDS);
         String fallback = "I've gathered some information but need more detail to give a complete answer. "
                 + "Could you rephrase or narrow down your question?";
+        String fallbackInstantTitle = null;
+        AssistantTitleService.InlineTitle fallbackInline =
+                AssistantTitleService.extractInlineTitle(fallback);
+        if (fallbackInline != null) {
+            fallback = fallbackInline.visibleText();
+            if (needsTitle) {
+                fallbackInstantTitle = fallbackInline.title();
+            }
+        }
         fallback = appendPendingActionsNote(fallback, pendingActions, pendingSummary);
         saveMessage(user, AssistantMessageRole.ASSISTANT, fallback, conversation);
 
@@ -822,7 +866,9 @@ public class AssistantService {
                 .distinct()
                 .toList();
 
-        return new AssistantReply(fallback, links, conversation.getId(), pendingActions);
+        AssistantReply capped = new AssistantReply(fallback, links, conversation.getId(), pendingActions);
+        settleTitle(conversation, userMessage, capped.text(), fallbackInstantTitle);
+        return capped;
     }
 
     /**
@@ -981,6 +1027,37 @@ public class AssistantService {
     private void saveMessage(User user, AssistantMessageRole role, String content,
                              AssistantConversation conversation) {
         messageRepository.save(new AssistantMessage(user, role, content, conversation));
+    }
+
+    /**
+     * Whether this turn still owes the conversation its first summary title:
+     * the thread carries no title yet or still carries the raw derived
+     * placeholder of THIS user message. Deliberately tier-agnostic — no
+     * role or permission check; every tier titles identically.
+     */
+    private static boolean isUntitledFor(String userMessage, AssistantConversation conversation) {
+        if (conversation == null || conversation.getId() == null
+                || userMessage == null || userMessage.isBlank()) {
+            return false;
+        }
+        String current = conversation.getTitle();
+        return current == null || current.equals(AssistantConversation.deriveTitle(userMessage));
+    }
+
+    /**
+     * Settles the sidebar title for an AI-turn reply: the instant
+     * single-round-trip title when the model produced one (synchronous, so
+     * the title is already stored when the reply is confirmed delivered),
+     * otherwise the async second-call fallback (no-op when already
+     * summarized or when the instant apply just landed).
+     */
+    private void settleTitle(AssistantConversation conversation, String userMessage,
+                             String replyText, String instantTitle) {
+        if (instantTitle != null
+                && titleService.applyTitleNow(conversation.getId(), instantTitle)) {
+            return;
+        }
+        titleService.maybeGenerateTitleAsync(conversation, userMessage, replyText);
     }
 
     /**
