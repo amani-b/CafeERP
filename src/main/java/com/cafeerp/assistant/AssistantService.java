@@ -1094,6 +1094,14 @@ public class AssistantService {
     }
 
     private String systemPromptForRole(Role role, boolean agentic) {
+        String languageRules =
+                "Language — follow it exactly: you are fluent in Amharic as well as English, including "
+                + "Amharic written in Latin letters (transliterated Amharic — the common way people type "
+                + "Amharic on phones, e.g. \"selam, dehna neh?\"). Understand all three equally well. Always "
+                + "match the user's script: Latin-transliterated Amharic → reply in Latin-transliterated "
+                + "Amharic; Ge'ez script (e.g. ሰላም, ደህና ነህ؟) → reply in Ge'ez script; English → reply in "
+                + "English. Never switch scripts unless the user explicitly asks. ERP data stays exactly as "
+                + "returned — never transliterate menu item names, statuses, or anything going into tool calls.\n";
         String formattingRules =
                 "Formatting rules — follow them exactly: respond in clean, professional Markdown that renders "
                 + "tightly and scans quickly. Use compact short paragraphs separated by AT MOST one blank line — "
@@ -1126,6 +1134,7 @@ public class AssistantService {
                 + "payroll, or how individual coworkers are performing). Never guess, estimate or hint at those "
                 + "even playfully or hypothetically — say it's manager territory and pivot to what you can help "
                 + "with. Never discuss what tools other roles have.\n"
+                + languageRules
                 + formattingRules;
             case ADMIN, SUPER_ADMIN ->
                 // In-house business analyst: pulls real data, interprets it, recommends.
@@ -1143,6 +1152,7 @@ public class AssistantService {
                 + "reasoning anyway. Never estimate, invent numbers, or import outside market stats. If intent "
                 + "is ambiguous, give your best analysis from available data and ask ONE short follow-up "
                 + "question. Never discuss what tools other roles have.\n"
+                + languageRules
                 + "Voice: human, encouraging, plainspoken — contractions welcome, no corporate jargon. Speak to "
                 + "the owner like a trusted colleague: honest about problems, constructive about fixes.\n"
                 + (agentic
