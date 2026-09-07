@@ -371,6 +371,7 @@
 
 #assistant-chat-input {
     flex: 1;
+    min-width: 0; /* 5-control composer row must shrink on narrow phones, not overflow */
     resize: none;
     border: 1px solid var(--line-strong);
     border-radius: 999px;
@@ -1090,5 +1091,146 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
         transition: none;
         opacity: 1;
         transform: none;
+    }
+}
+
+/* ================================================================
+   Phase 8 — voice mode (EN + AM, free Web Speech API)
+   Mic + language select + read-aloud toggle in the composer, a
+   polite status line for honest capability notes, per-reply replay
+   buttons, and the text-only fallback note shown instead of reading
+   Amharic in an English voice. Tokens from app.css throughout.
+   ================================================================ */
+
+#assistant-chat-voice-lang {
+    flex-shrink: 0;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 0 6px;
+    height: 40px;
+    cursor: pointer;
+    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+#assistant-chat-voice-lang:hover { border-color: var(--ink); color: var(--ink); }
+#assistant-chat-voice-lang:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+
+#assistant-chat-mic,
+#assistant-chat-tts-toggle {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--ink-soft);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+                border-color var(--dur) var(--ease), transform var(--dur) var(--ease),
+                opacity var(--dur) var(--ease);
+}
+#assistant-chat-mic svg,
+#assistant-chat-tts-toggle svg { width: 16px; height: 16px; }
+#assistant-chat-mic:hover:not(:disabled),
+#assistant-chat-tts-toggle:hover:not(:disabled) {
+    border-color: var(--ink);
+    color: var(--ink);
+    transform: translateY(-1px);
+}
+#assistant-chat-mic:active:not(:disabled),
+#assistant-chat-tts-toggle:active:not(:disabled) { transform: scale(.94); }
+#assistant-chat-mic:focus-visible,
+#assistant-chat-tts-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+#assistant-chat-mic:disabled,
+#assistant-chat-tts-toggle:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Listening: unmistakable recording state (ink fill + pulse ring). */
+#assistant-chat-mic.listening {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+    position: relative;
+}
+#assistant-chat-tts-toggle.on {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    #assistant-chat-mic.listening::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 2px solid var(--ink);
+        opacity: .6;
+        animation: chat-mic-ring 1.6s var(--ease) infinite;
+    }
+    @keyframes chat-mic-ring {
+        0%   { transform: scale(.9); opacity: .7; }
+        70%  { transform: scale(1.15); opacity: 0; }
+        100% { transform: scale(1.15); opacity: 0; }
+    }
+    .msg-action-btn.msg-speak.playing { animation: chat-dot 1.2s var(--ease) infinite; }
+}
+
+/* Honest-fallback status line between thread and composer. */
+#assistant-chat-voice-status {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border-top: 1px solid var(--line);
+}
+#assistant-chat-voice-status[hidden] { display: none; }
+
+/* Per-reply text-only fallback note (no Amharic voice on device). */
+.assistant-voice-note {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+}
+
+/* Per-message replay button shares the msg-action-btn look; the
+   speaking state is an ink fill so "now reading" is visible. */
+.msg-action-btn.msg-speak.playing {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+@media (max-width: 520px) {
+    #assistant-chat-voice-lang { height: 34px; font-size: 11px; padding: 0 4px; max-width: 58px; }
+    #assistant-chat-mic, #assistant-chat-tts-toggle { width: 34px; height: 34px; }
+    #assistant-chat-mic svg, #assistant-chat-tts-toggle svg { width: 14px; height: 14px; }
+    #assistant-chat-voice-status { padding: 6px 10px; font-size: 12px; }
+}
+
+/* Very narrow phones (<=360px): the 5-control row stays on one line by
+   trimming fixed chrome further — textarea keeps ~120px minimum. */
+@media (max-width: 360px) {
+    #assistant-chat-input-area { gap: 4px; padding: 6px 6px; }
+    #assistant-chat-voice-lang { max-width: 50px; font-size: 10.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #assistant-chat-mic.listening::after,
+    .msg-action-btn.msg-speak.playing {
+        animation: none;
     }
 }
