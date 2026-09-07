@@ -506,8 +506,12 @@ public class AssistantTitleService {
                 try {
                     Map<String, Object> body = new HashMap<>();
                     body.put("model", provider.effectiveTitleModel());
+                    // Amharic threads get native idiomatic titles in the user's
+                    // own script — never a stiff translation of an English one.
+                    String systemPrompt = SYSTEM_PROMPT
+                            + AmharicLanguageSupport.titleHintFor(userMessage);
                     body.put("messages", List.of(
-                            Map.of("role", "system", "content", SYSTEM_PROMPT),
+                            Map.of("role", "system", "content", systemPrompt),
                             Map.of("role", "user", "content", buildUserPrompt(userMessage, replyText))));
                     body.put("max_tokens", TITLE_MAX_TOKENS);
                     body.put("temperature", 0.3);
