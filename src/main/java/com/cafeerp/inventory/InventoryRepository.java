@@ -19,6 +19,24 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     Optional<Inventory> findByMenuItemId(Long menuItemId);
 
     /**
+     * Phase 9: indexed single-row lookup of a tracked item by its menu name
+     * (case-insensitive) for the assistant's tools. Replaces the previous
+     * load-everything-and-scan pattern (inventoryService.findAll() + linear
+     * Java filter) on every inventory tool call.
+     */
+    Optional<Inventory> findByMenuItem_NameIgnoreCase(String name);
+
+    /**
+     * Phase 9: low-stock badge count as a single aggregate query. Same
+     * predicate the old Java-stream implementation used (tracked AND
+     * stock &lt;= threshold) — the per-row threshold comparison stays in
+     * SQL so no rows are materialized.
+     */
+    @Query("select count(i) from Inventory i "
+         + "where i.trackInventory = true and i.stockQuantity <= i.lowStockThreshold")
+    long countLowStockItems();
+
+    /**
      * Atomically decrements stock for a menu item if sufficient stock exists.
      * Returns the number of rows updated (1 on success, 0 if stock insufficient
      * or item not found). This prevents overselling under concurrent requests

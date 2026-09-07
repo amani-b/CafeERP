@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,22 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<Order> findAll() {
         return orderRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    /**
+     * Phase 9: newest-first page of orders WITHOUT line items, for the
+     * assistant's getOrderHistory tool. The limit is enforced by the
+     * database (no full-table fetch join + in-memory filter/limit).
+     */
+    @Transactional(readOnly = true)
+    public List<Order> findRecent(int limit) {
+        return orderRepository.findRecentPage(PageRequest.of(0, limit)).getContent();
+    }
+
+    /** Status-filtered variant of {@link #findRecent(int)}. */
+    @Transactional(readOnly = true)
+    public List<Order> findRecentByStatus(OrderStatus status, int limit) {
+        return orderRepository.findRecentPageByStatus(status, PageRequest.of(0, limit)).getContent();
     }
 
     @Transactional(readOnly = true)

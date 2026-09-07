@@ -1,6 +1,7 @@
 package com.cafeerp.menu;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.cafeerp.category.CategoryRepository;
 import com.cafeerp.inventory.Inventory;
@@ -33,6 +34,14 @@ public class MenuService {
 
     public List<MenuItem> findAvailable() {
         return menuItemRepository.findByAvailableTrue();
+    }
+
+    /**
+     * Phase 9: single-row lookup by name (case-insensitive) for the
+     * assistant's tools — indexed query instead of findAll() + Java scan.
+     */
+    public Optional<MenuItem> findByNameIgnoreCase(String name) {
+        return menuItemRepository.findFirstByNameIgnoreCase(name);
     }
 
     public MenuItem findById(Long id) {
