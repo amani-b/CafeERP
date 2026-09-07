@@ -1,6 +1,7 @@
 package com.cafeerp.inventory;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,14 +25,24 @@ public class InventoryService {
     }
 
     /**
+     * Phase 9: single-row lookup of a tracked item by menu name for the
+     * assistant's inventory tools (indexed query, no table scan).
+     */
+    @Transactional(readOnly = true)
+    public Optional<Inventory> findByItemNameIgnoreCase(String name) {
+        return inventoryRepository.findByMenuItem_NameIgnoreCase(name);
+    }
+
+    /**
      * Returns the number of tracked inventory items whose stockQuantity
      * is at or below their lowStockThreshold.
+     * <p>
+     * Phase 9: single aggregate query — same predicate as before, evaluated
+     * in SQL instead of materializing every row into a Java stream.
      */
     @Transactional(readOnly = true)
     public long countLowStock() {
-        return inventoryRepository.findAll().stream()
-                .filter(inv -> inv.isTrackInventory() && inv.getStockQuantity() <= inv.getLowStockThreshold())
-                .count();
+        return inventoryRepository.countLowStockItems();
     }
 
     @Transactional

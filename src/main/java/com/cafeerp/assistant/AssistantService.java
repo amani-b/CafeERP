@@ -403,9 +403,12 @@ public class AssistantService {
             messages.add(Map.of("role", "user", "content", instruction));
         }
 
-        // 5. Determine the user's permission-scoped tools (agentic path)
+        // 5. Determine the user's permission-scoped tools (agentic path).
+        // Phase 9: the name set is derived from the already-built list —
+        // rebuilding the whole tool definitions a second time per turn was
+        // pure waste (maps, lists and permission checks, every AI round).
         List<Map<String, Object>> tools = toolRegistry.toolsForUser(user);
-        Set<String> allowedToolNames = toolRegistry.allowedToolNamesForUser(user);
+        Set<String> allowedToolNames = toolRegistry.toolNamesOf(tools);
 
         // 6. Try each provider in order — AI path for non-canonical queries
         for (ModelProvider provider : providers) {
@@ -617,9 +620,11 @@ public class AssistantService {
      * Everything else returns false and goes through the AI provider chain.
      */
     private boolean shouldRouteToDeterministicFirst(String userMessage, User user) {
-        Set<String> allowedTools = toolRegistry.allowedToolNamesForUser(user);
-        // Only route order lookups to deterministic first if the user has access to getOrderStatus
-        if (!allowedTools.contains("getOrderStatus")) {
+        // Phase 9: direct permission check instead of rebuilding the user's
+        // entire tool-definition list a second time per turn — getOrderStatus
+        // is offered exactly when the user holds ORDER_KITCHEN (see
+        // AssistantToolRegistry.toolsForUser), so this is equivalent.
+        if (!AgenticPermissions.holds(user, Permission.ORDER_KITCHEN)) {
             return false;
         }
         // Match order-looking queries only: "order #123", "order 456", "#789"

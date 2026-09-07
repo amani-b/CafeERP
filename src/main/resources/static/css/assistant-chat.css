@@ -977,7 +977,15 @@ body.assistant-chat-fullscreen-open { overflow: hidden; }
     #assistant-chat-input { padding: 8px 14px; font-size: 13.5px; }
     #assistant-chat-send { width: 34px; height: 34px; }
     #assistant-chat-send svg { width: 14px; height: 14px; }
-    #assistant-chat-widget.fullscreen #assistant-chat-input-area { margin-bottom: 8px; }
+    /* Fullscreen on a phone: the composer is edge-to-edge by default
+       (width 100% + zero padding), so the pill touches both screen edges.
+       Inset it like a floating dock instead — side margins plus the
+       bottom safe-area so it clears the home indicator. */
+    #assistant-chat-widget.fullscreen #assistant-chat-input-area {
+        width: auto;
+        max-width: none;
+        margin: 0 12px max(12px, env(safe-area-inset-bottom));
+    }
     .msg-regen-panel { max-width: 100%; }
 }
 

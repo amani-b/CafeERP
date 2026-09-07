@@ -133,7 +133,16 @@ public class AssistantToolRegistry {
 
     /** Tool-name set mirroring {@link #toolsForUser(User)} for dispatch checks. */
     public Set<String> allowedToolNamesForUser(User user) {
-        return toolsForUser(user).stream()
+        return toolNamesOf(toolsForUser(user));
+    }
+
+    /**
+     * Phase 9: derive the tool-name set from an ALREADY-BUILT tool list.
+     * The chat path calls this instead of {@link #allowedToolNamesForUser(User)}
+     * so one turn builds the (identical) tool definitions exactly once.
+     */
+    public Set<String> toolNamesOf(List<Map<String, Object>> tools) {
+        return tools.stream()
                 .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))
                 .collect(Collectors.toSet());
     }
@@ -628,17 +637,15 @@ public class AssistantToolRegistry {
                     Map<String, Object> args = objectMapper.readValue(argumentsJson,
                             new TypeReference<Map<String, Object>>() {});
                     String itemName = (String) args.get("itemName");
-                    List<Inventory> all = inventoryService.findAll();
-                    for (Inventory inv : all) {
-                        if (inv.getMenuItem().getName().equalsIgnoreCase(itemName)) {
-                            return String.format("%s: stock=%d, threshold=%d, tracking=%s",
+                    // Phase 9: indexed single-row lookup (was: load the whole
+                    // inventory table + linear Java scan per tool call).
+                    return inventoryService.findByItemNameIgnoreCase(itemName)
+                            .map(inv -> String.format("%s: stock=%d, threshold=%d, tracking=%s",
                                     inv.getMenuItem().getName(),
                                     inv.getStockQuantity(),
                                     inv.getLowStockThreshold(),
-                                    inv.isTrackInventory() ? "yes" : "no");
-                        }
-                    }
-                    return "Item not found: " + itemName;
+                                    inv.isTrackInventory() ? "yes" : "no"))
+                            .orElse("Item not found: " + itemName);
                 }
                 case "getKitchenQueueSummary": {
                     var active = orderService.findActiveOrders();
@@ -656,10 +663,12 @@ public class AssistantToolRegistry {
                     OrderStatus statusFilter = statusRaw == null || statusRaw.isBlank() ? null
                             : OrderStatus.valueOf(statusRaw);
                     int limit = args.get("limit") instanceof Number n ? Math.min(20, Math.max(1, n.intValue())) : 10;
-                    List<Order> orders = orderService.findAll().stream()
-                            .filter(o -> statusFilter == null || o.getStatus() == statusFilter)
-                            .limit(limit)
-                            .toList();
+                    // Phase 9: paged DB query (newest first, limit pushed down —
+                    // no items fetch join). Was: load the ENTIRE order table
+                    // with all line items, then filter/limit in memory.
+                    List<Order> orders = statusFilter == null
+                            ? orderService.findRecent(limit)
+                            : orderService.findRecentByStatus(statusFilter, limit);
                     if (orders.isEmpty()) {
                         return "No orders found" + (statusFilter != null ? " with status " + statusFilter : "") + ".";
                     }
@@ -723,9 +732,8 @@ public class AssistantToolRegistry {
                         if (quantity < 1) {
                             throw new IllegalArgumentException("quantity must be at least 1 for '" + itemName + "'");
                         }
-                        MenuItem menuItem = menuItemRepository.findAll().stream()
-                                .filter(m -> m.getName().equalsIgnoreCase(itemName))
-                                .findFirst()
+                        // Phase 9: indexed lookup (was: full menu table scan per line).
+                        MenuItem menuItem = menuItemRepository.findFirstByNameIgnoreCase(itemName)
                                 .orElseThrow(() -> new IllegalArgumentException("menu item not found: " + itemName));
                         quantities.merge(menuItem.getId(), quantity, Integer::sum);
                         summary.append(String.format("%s x%d, ", menuItem.getName(), quantity));
@@ -752,9 +760,8 @@ public class AssistantToolRegistry {
                     if (stockQuantity < 0) {
                         throw new IllegalArgumentException("stockQuantity cannot be negative");
                     }
-                    Inventory inv = inventoryService.findAll().stream()
-                            .filter(i -> i.getMenuItem().getName().equalsIgnoreCase(itemName))
-                            .findFirst()
+                    // Phase 9: indexed lookup (was: full inventory table scan).
+                    Inventory inv = inventoryService.findByItemNameIgnoreCase(itemName)
                             .orElseThrow(() -> new IllegalArgumentException("tracked inventory item not found: " + itemName));
                     inventoryService.update(inv.getId(), inv.isTrackInventory(),
                             stockQuantity, inv.getLowStockThreshold());
@@ -772,9 +779,8 @@ public class AssistantToolRegistry {
                     boolean trackInventory = args.get("trackInventory") != null
                             ? Boolean.parseBoolean(String.valueOf(args.get("trackInventory")))
                             : true; // resolved from the actual row below when absent
-                    Inventory inv = inventoryService.findAll().stream()
-                            .filter(i -> i.getMenuItem().getName().equalsIgnoreCase(itemName))
-                            .findFirst()
+                    // Phase 9: indexed lookup (was: full inventory table scan).
+                    Inventory inv = inventoryService.findByItemNameIgnoreCase(itemName)
                             .orElseThrow(() -> new IllegalArgumentException("tracked inventory item not found: " + itemName));
                     boolean effectiveTrack = args.get("trackInventory") != null
                             ? trackInventory : inv.isTrackInventory();
@@ -787,9 +793,8 @@ public class AssistantToolRegistry {
                     Map<String, Object> args = objectMapper.readValue(argumentsJson,
                             new TypeReference<Map<String, Object>>() {});
                     String itemName = String.valueOf(args.get("itemName"));
-                    MenuItem item = menuService.findAll().stream()
-                            .filter(m -> m.getName().equalsIgnoreCase(itemName))
-                            .findFirst()
+                    // Phase 9: indexed lookup (was: full menu table scan).
+                    MenuItem item = menuItemRepository.findFirstByNameIgnoreCase(itemName)
                             .orElseThrow(() -> new IllegalArgumentException("menu item not found: " + itemName));
                     StringBuilder summary = new StringBuilder("Updated menu item \"").append(item.getName()).append("\"");
                     if (args.get("newPrice") != null) {

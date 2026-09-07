@@ -128,9 +128,10 @@ class ReportServiceTest {
         LocalDateTime from = today.atStartOfDay();
         LocalDateTime to = today.atTime(23, 59, 59, 999_999_999);
 
-        // Repository queries receive UTC boundaries (business-local minus 3h)
-        when(orderRepository.sumTotalAmountBetween(toUtc(from), toUtc(to))).thenReturn(new BigDecimal("150.00"));
-        when(orderRepository.countByCreatedAtBetween(toUtc(from), toUtc(to))).thenReturn(5L);
+        // Repository query receives UTC boundaries (business-local minus 3h).
+        // Phase 9: total + count arrive as ONE combined row [total, count].
+        when(orderRepository.sumAndCountBetween(toUtc(from), toUtc(to)))
+                .thenReturn(List.<Object[]>of(new Object[] {new BigDecimal("150.00"), 5L}));
 
         ItemSalesProjection item1 = mockProjection("Latte", 10L);
         ItemSalesProjection item2 = mockProjection("Cappuccino", 7L);
@@ -156,8 +157,10 @@ class ReportServiceTest {
         LocalDateTime from = today.atStartOfDay();
         LocalDateTime to = today.atTime(23, 59, 59, 999_999_999);
 
-        when(orderRepository.sumTotalAmountBetween(toUtc(from), toUtc(to))).thenReturn(BigDecimal.ZERO);
-        when(orderRepository.countByCreatedAtBetween(toUtc(from), toUtc(to))).thenReturn(0L);
+        // Empty range: the DB returns Integer 0 (not BigDecimal) for the
+        // coalesced total — the service must convert, not cast.
+        when(orderRepository.sumAndCountBetween(toUtc(from), toUtc(to)))
+                .thenReturn(List.<Object[]>of(new Object[] {0, 0L}));
         when(orderItemRepository.findTopSellingItems(toUtc(from), toUtc(to))).thenReturn(List.of());
 
         ReportData report = reportService.generateReport(from, to);
