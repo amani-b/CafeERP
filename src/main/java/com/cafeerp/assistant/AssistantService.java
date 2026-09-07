@@ -361,9 +361,10 @@ public class AssistantService {
         // no second network round-trip. Plain completion text only; the tag
         // never touches the ERP-knowledge/agentic tool-calling pipeline.
         boolean needsTitle = isUntitledFor(userMessage, conversation);
-        String systemPrompt = systemPromptForRole(user);
+        String systemPrompt = systemPromptForRole(user, userMessage);
         if (needsTitle) {
-            systemPrompt = systemPrompt + "\n" + AssistantTitleService.TITLE_TAG_INSTRUCTION;
+            systemPrompt = systemPrompt + "\n" + AssistantTitleService.TITLE_TAG_INSTRUCTION
+                    + AmharicLanguageSupport.titleHintFor(userMessage);
         }
 
         // System prompt (role-specific, plus agentic guidance when the user
@@ -440,7 +441,7 @@ public class AssistantService {
 
         // 8. Tier 2 also found no match — return unavailable message
         log.warn("Tier 2 fallback also found no match for user '{}'; returning unavailable message", user.getUsername());
-        AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole());
+        AssistantReply unavailable = fallbackHandler.unavailableMessage(user.getRole(), userMessage);
         saveMessage(user, AssistantMessageRole.ASSISTANT, unavailable.text(), conversation);
         return unavailable;
     }
@@ -666,6 +667,20 @@ public class AssistantService {
 
         // Deep-copy messages so each provider starts fresh
         List<Map<String, Object>> msgs = deepCopyMessages(messages);
+
+        // Per-provider Amharic booster: the free models behind Groq, Gemini
+        // and OpenRouter do not share the same out-of-the-box fluency, so each
+        // gets its own few-line reinforcement appended to the system message
+        // of ITS copy only. English turns yield an empty booster — the English
+        // path (and its latency characteristics: one small string concat) is
+        // unaffected.
+        String booster = AmharicLanguageSupport.boosterFor(
+                provider.name(), AmharicLanguageSupport.detect(userMessage));
+        if (!booster.isEmpty() && !msgs.isEmpty() && "system".equals(msgs.get(0).get("role"))) {
+            Map<String, Object> system = new HashMap<>(msgs.get(0));
+            system.put("content", system.get("content") + "\n" + booster);
+            msgs.set(0, system);
+        }
 
         List<String> firedToolNames = new ArrayList<>();
         Map<String, String> toolNameToUrl = buildSourceUrlMap(user);
@@ -1091,6 +1106,17 @@ public class AssistantService {
     private String systemPromptForRole(User user) {
         boolean agentic = AgenticPermissions.isAgentic(user);
         return systemPromptForRole(user.getRole(), agentic);
+    }
+
+    /**
+     * Turn-aware variant: layers the native Amharic voice directive for this
+     * specific user message on top of the role brief. Pure English turns get
+     * an empty directive, so the English path is exactly what it was before.
+     */
+    private String systemPromptForRole(User user, String userMessage) {
+        String base = systemPromptForRole(user);
+        String directive = AmharicLanguageSupport.directiveFor(userMessage);
+        return directive.isEmpty() ? base : base + "\n" + directive;
     }
 
     private String systemPromptForRole(Role role, boolean agentic) {
