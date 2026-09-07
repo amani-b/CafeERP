@@ -548,7 +548,7 @@
     // ----------------------------- sending ---------------------------
 
     // ----- Phase 5: shared SSE streaming turn (one implementation for
-    // chat / edit / regenerate; the Phase 6 coding tool reuses it too) -----
+    // chat / edit / regenerate) -----
 
     // Appends a live trace container above the loading dots (or at the end
     // of the stream when the dots are not showing). `host` lets the action

@@ -17,10 +17,8 @@ public enum Permission {
     REPORT("Reports"),
     USER_MANAGEMENT("User management"),
     CATEGORY("Categories"),
-    /** Capability planned for a later phase — grantable by SUPER_ADMIN only. */
-    AI_AGENTIC_ACTIONS("AI agentic actions"),
-    /** Capability planned for a later phase — grantable by SUPER_ADMIN only. */
-    AI_CODING_TOOL("AI coding tool");
+    /** Capability gated to SUPER_ADMIN grantors — the agentic write actions. */
+    AI_AGENTIC_ACTIONS("AI agentic actions");
 
     private final String label;
 
@@ -40,6 +38,6 @@ public enum Permission {
 
     /** True when only a SUPER_ADMIN may grant this permission to others. */
     public boolean isSuperAdminOnly() {
-        return this == AI_AGENTIC_ACTIONS || this == AI_CODING_TOOL;
+        return this == AI_AGENTIC_ACTIONS;
     }
 }

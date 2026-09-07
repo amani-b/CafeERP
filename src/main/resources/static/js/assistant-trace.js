@@ -2,7 +2,7 @@
  * Phase 5 — shared "what the AI is doing" trace component.
  *
  * ONE implementation used by every streamed assistant flow (chat / edit /
- * regenerate today; the coding tool in Phase 6). While the assistant works,
+ * regenerate). While the assistant works,
  * each step streams in as a short human-readable line; when the final reply
  * arrives, the whole trace collapses into a small expandable "N steps"
  * affordance so it never permanently clutters the chat.
