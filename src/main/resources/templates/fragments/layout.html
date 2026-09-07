@@ -38,6 +38,11 @@
     <script th:src="@{/js/app.js}" defer="defer"></script>
     <script th:src="@{/js/assistant-trace.js}" defer="defer"></script>
     <script th:src="@{/js/assistant-chat.js}" defer="defer"></script>
+    <!-- Phase 8 voice mode: Web Speech STT/TTS, client-side only, zero
+         backend cost. Loads last — it hooks the widget's DOM ids and needs
+         no changes to assistant-chat.js (dictation fills the composer and
+         flows through the normal send + Phase 4 confirmation path). -->
+    <script th:src="@{/js/assistant-voice.js}" defer="defer"></script>
 </head>
 
 <!-- ============================================================ -->
@@ -323,8 +328,25 @@
             </aside>
             <div id="assistant-chat-main">
                 <div id="assistant-chat-messages"></div>
+                <!-- Phase 8 voice status line: honest capability / error notes
+                     (e.g. Amharic unsupported here). aria-live polite. -->
+                <div id="assistant-chat-voice-status" role="status" aria-live="polite" hidden></div>
                 <div id="assistant-chat-input-area">
+                    <!-- Phase 8 voice controls: STT language, mic, read-aloud.
+                         Dictation only fills the composer — Send + Phase 4
+                         action Confirm/Cancel still apply to voice turns. -->
+                    <select id="assistant-chat-voice-lang" aria-label="Voice input language" title="Voice input language">
+                        <option value="auto">Auto</option>
+                        <option value="en">EN</option>
+                        <option value="am">አማ</option>
+                    </select>
+                    <button id="assistant-chat-mic" type="button" aria-label="Start voice input" title="Start voice input" aria-pressed="false" data-testid="assistant-chat-mic">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    </button>
                     <textarea id="assistant-chat-input" rows="1" placeholder="Ask a question..." aria-label="Chat message"></textarea>
+                    <button id="assistant-chat-tts-toggle" type="button" aria-label="Read replies aloud" title="Read aloud: OFF" aria-pressed="false" data-testid="assistant-chat-tts-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </button>
                     <button id="assistant-chat-send" aria-label="Send">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
                     </button>
