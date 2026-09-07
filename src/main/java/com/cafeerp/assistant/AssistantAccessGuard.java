@@ -49,22 +49,49 @@ public class AssistantAccessGuard {
             + "happy to help with here: menu prices, order lookups, and working through how to run "
             + "a smoother shift.";
 
+    /**
+     * Same denial in the user's own script — an Amharic speaker who hits the
+     * gate gets the boundary explained in Amharic, not a jarring
+     * English-only wall (which would itself read like the translation-layer
+     * bug this pass exists to kill).
+     */
+    private static final String DENIAL_TEXT_AM_GEEZ =
+            "ይቅርታ — ይህን መረጃ መስጠት አልችልም፦ የሽያጭ ቁጥሮች፣ ገቢ፣ ትርፍ፣ የደሞዝ መረጃ እና "
+            + "የእያንዳንዱ ሰራተኛ አፈጻጸም ለማናጀሮች ብቻ የተያዘ ነው። ጥያቄዎን ወደ ምንም ቦታ አላስተላልፍም።\n"
+            + "ለዚህ ጉዳይ ማናጀርዎን በቀጥታ ይጠይቁ። በምናሌ ዋጋ፣ በትዕዛዝ መፈለግ እና በሥራ ቀን ማቀላጠፍ "
+            + "ሁልጊዜ ልርዳዎት ዝግጁ ነኝ።";
+
+    private static final String DENIAL_TEXT_AM_TRANS =
+            "yikerta — yehe mereja mesTet alchilm: ye-shyach kutroch, gebi, tirf, ye-demoz mereja na "
+            + "ye-eyandandu serategna afetsatsem le-manajeroch bicha yete yaze new. tiyakewon wede minum "
+            + "bota alastelalifim.\n"
+            + "lezihe guday manajerwon beketa yiteyiku. be-minale waga, be-tizaz mefeleg na be-sira ken "
+            + "makelatef hul-gize lirdawo zigeju negn.";
+
     // Financial / sales topics -------------------------------------------------
+    // Amharic forms ride along so the gate cannot be sidestepped by switching
+    // language: Ge'ez ሽያጭ/ገቢ/ትርፍ and transliterated shyach/gebi/tirf.
     private static final List<Pattern> FINANCE_PATTERNS = List.of(
             Pattern.compile("\\bsales?\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\brevenue\\b|\\btakings\\b|\\bturnover\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\bprofit(s|able|ability)?\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\bmargins?\\b|\\bmark-?ups?\\b", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\b(what|how much).{0,40}\\b(making|earning|bring)", Pattern.CASE_INSENSITIVE));
+            Pattern.compile("\\b(what|how much).{0,40}\\b(making|earning|bring)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("ሽያጭ|ሽያች|ገቢ|ትርፍ"),
+            Pattern.compile("\\b(shyach|shiyach|gebi|tirf)\\b", Pattern.CASE_INSENSITIVE));
 
     // Pay / wage topics --------------------------------------------------------
+    // Amharic: Ge'ez ደሞዝ/ደመወዝ/ክፍያ, transliterated demoz/demewez/kifiya.
     private static final List<Pattern> PAY_PATTERNS = List.of(
             Pattern.compile("\\bwages?\\b|\\bsalar(y|ies)\\b|\\bpayroll\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\b(hourly|pay)\\s+rate", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\bpaid?.{0,15}(per|an|by the)\\s+hour", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("\\btips?(\\s+(pool|split|shared))?\\b", Pattern.CASE_INSENSITIVE));
+            Pattern.compile("\\btips?(\\s+(pool|split|shared))?\\b", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("ደሞዝ|ደመወዝ|ክፍያ"),
+            Pattern.compile("\\b(demoz|demewez|kifiya|kifya)\\b", Pattern.CASE_INSENSITIVE));
 
     // Other people's performance -------------------------------------------------
+    // Amharic: Ge'ez አፈጻጸም/ምርጥ/ፈጣን, transliterated afetsatsem/mert/fetan.
     private static final List<Pattern> PERFORMANCE_PATTERNS = List.of(
             Pattern.compile("\\bperformance\\b|\\bproductivity\\b", Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\b(best|top|fastest|slowest|weakest|strongest|worst)\\b.{0,40}"
@@ -74,7 +101,9 @@ public class AssistantAccessGuard {
                     Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\bwho('s| is| was)\\b.{0,30}"
                     + "\\b(fastest|slowest|best|worst|strongest|weakest|most productive)\\b",
-                    Pattern.CASE_INSENSITIVE));
+                    Pattern.CASE_INSENSITIVE),
+            Pattern.compile("አፈጻጸም|ምርጥ|ፈጣን"),
+            Pattern.compile("\\b(afetsatsem|afetsasem|mert|fetan)\\b", Pattern.CASE_INSENSITIVE));
 
     /**
      * Classify an inbound message for the given role.
@@ -90,7 +119,18 @@ public class AssistantAccessGuard {
         boolean sensitive = matchesAny(FINANCE_PATTERNS, userMessage)
                 || matchesAny(PAY_PATTERNS, userMessage)
                 || matchesAny(PERFORMANCE_PATTERNS, userMessage);
-        return sensitive ? Decision.deny(DENIAL_TEXT) : Decision.allow();
+        if (!sensitive) {
+            return Decision.allow();
+        }
+        // The boundary itself is explained in the user's own script.
+        AmharicLanguageSupport.Script script = AmharicLanguageSupport.detect(userMessage);
+        return switch (script) {
+            case GEEZ -> Decision.deny(DENIAL_TEXT_AM_GEEZ);
+            case TRANSLITERATED -> Decision.deny(DENIAL_TEXT_AM_TRANS);
+            case MIXED -> Decision.deny(AmharicLanguageSupport.containsGeez(userMessage)
+                    ? DENIAL_TEXT_AM_GEEZ : DENIAL_TEXT_AM_TRANS);
+            case ENGLISH -> Decision.deny(DENIAL_TEXT);
+        };
     }
 
     /** Exposed for tests and logging context. */

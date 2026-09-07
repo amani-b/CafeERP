@@ -145,7 +145,7 @@ class AssistantServiceTest {
         // Tier 2 was consulted
         verify(fallbackHandler).tryAnswer(anyString(), eq(Role.STAFF));
         // Tier 2 matched, so unavailableMessage should NOT be called
-        verify(fallbackHandler, never()).unavailableMessage(any());
+        verify(fallbackHandler, never()).unavailableMessage(any(), any());
     }
 
     @Test
@@ -207,14 +207,14 @@ class AssistantServiceTest {
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(null);
         // No providers configured (default), so fall through to unavailable
-        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
+        lenient().when(fallbackHandler.unavailableMessage(eq(Role.STAFF), anyString()))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         AssistantReply reply = assistantService.processMessage(staffUser, "What is the meaning of life?");
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("temporarily unavailable"));
-        verify(fallbackHandler).unavailableMessage(Role.STAFF);
+        verify(fallbackHandler).unavailableMessage(eq(Role.STAFF), anyString());
     }
 
     // ---------------------------------------------------------------
@@ -250,7 +250,7 @@ class AssistantServiceTest {
         openrouter.setSupportsMinTokens(false);
 
         when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
-        when(fallbackHandler.unavailableMessage(Role.STAFF))
+        when(fallbackHandler.unavailableMessage(eq(Role.STAFF), anyString()))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
@@ -262,7 +262,7 @@ class AssistantServiceTest {
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("temporarily unavailable"));
-        verify(fallbackHandler).unavailableMessage(Role.STAFF);
+        verify(fallbackHandler).unavailableMessage(eq(Role.STAFF), anyString());
     }
 
     @Test
@@ -295,7 +295,7 @@ class AssistantServiceTest {
         openrouter.setSupportsMinTokens(false);
 
         when(configProperties.getProviders()).thenReturn(List.of(groq, gemini, openrouter));
-        when(fallbackHandler.unavailableMessage(Role.STAFF))
+        when(fallbackHandler.unavailableMessage(eq(Role.STAFF), anyString()))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable. You can still ask me about:", List.of()));
 
         assistantService = new AssistantService(messageRepository, conversationRepository,
@@ -307,7 +307,7 @@ class AssistantServiceTest {
 
         assertNotNull(reply);
         assertTrue(reply.text().contains("temporarily unavailable"));
-        verify(fallbackHandler).unavailableMessage(Role.STAFF);
+        verify(fallbackHandler).unavailableMessage(eq(Role.STAFF), anyString());
     }
 
     // ---------------------------------------------------------------
@@ -329,7 +329,7 @@ class AssistantServiceTest {
         // Tier 2 doesn't match
         lenient().when(fallbackHandler.tryAnswer(anyString(), eq(Role.STAFF)))
                 .thenReturn(null);
-        lenient().when(fallbackHandler.unavailableMessage(Role.STAFF))
+        lenient().when(fallbackHandler.unavailableMessage(eq(Role.STAFF), anyString()))
                 .thenReturn(new AssistantReply("The AI assistant is temporarily unavailable.", List.of()));
 
         AssistantReply reply = assistantService.processMessage(staffUser, "Hello");
