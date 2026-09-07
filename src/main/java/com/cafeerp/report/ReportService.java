@@ -108,8 +108,13 @@ public class ReportService {
         LocalDateTime fromUtc = toUtc(from, zone);
         LocalDateTime toUtc = toUtc(to, zone);
 
-        BigDecimal totalSales = orderRepository.sumTotalAmountBetween(fromUtc, toUtc);
-        long orderCount = orderRepository.countByCreatedAtBetween(fromUtc, toUtc);
+        // Phase 9: total + count in ONE round trip over the range (was two
+        // separate queries). The total column is BigDecimal when rows exist
+        // and Integer 0 when the range is empty — convert, don't cast.
+        List<Object[]> totals = orderRepository.sumAndCountBetween(fromUtc, toUtc);
+        Object[] row = totals.isEmpty() ? new Object[] {BigDecimal.ZERO, 0L} : totals.get(0);
+        BigDecimal totalSales = toBigDecimal(row[0]);
+        long orderCount = ((Number) row[1]).longValue();
         List<ItemSalesProjection> topItems = orderItemRepository.findTopSellingItems(fromUtc, toUtc);
 
         // Limit to top 5
@@ -122,6 +127,20 @@ public class ReportService {
         return businessLocal.atZone(zone)
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toLocalDateTime();
+    }
+
+    /** Lenient numeric conversion for the combined aggregate's total column. */
+    private static BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return new BigDecimal(number.toString());
+        }
+        throw new IllegalStateException("Unexpected sales total type: " + value.getClass());
     }
 
     /**

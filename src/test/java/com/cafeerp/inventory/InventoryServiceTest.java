@@ -1,6 +1,5 @@
 package com.cafeerp.inventory;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -109,8 +108,7 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_whenStockEqualsThreshold_shouldCount() {
-        Inventory inv = inventory(1L, 10L, true, 5, 5);
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv));
+        when(inventoryRepository.countLowStockItems()).thenReturn(1L);
 
         long count = inventoryService.countLowStock();
 
@@ -122,8 +120,7 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_whenStockOneAboveThreshold_shouldNotCount() {
-        Inventory inv = inventory(1L, 10L, true, 6, 5);
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv));
+        when(inventoryRepository.countLowStockItems()).thenReturn(0L);
 
         long count = inventoryService.countLowStock();
 
@@ -135,8 +132,7 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_whenStockOneBelowThreshold_shouldCount() {
-        Inventory inv = inventory(1L, 10L, true, 4, 5);
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv));
+        when(inventoryRepository.countLowStockItems()).thenReturn(1L);
 
         long count = inventoryService.countLowStock();
 
@@ -148,8 +144,7 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_whenNotTracked_shouldNotCountEvenIfLow() {
-        Inventory inv = inventory(1L, 10L, false, 1, 5);
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv));
+        when(inventoryRepository.countLowStockItems()).thenReturn(0L);
 
         long count = inventoryService.countLowStock();
 
@@ -161,8 +156,7 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_whenTrackedAndStockAboveThreshold_shouldNotCount() {
-        Inventory inv = inventory(1L, 10L, true, 100, 5);
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv));
+        when(inventoryRepository.countLowStockItems()).thenReturn(0L);
 
         long count = inventoryService.countLowStock();
 
@@ -174,14 +168,28 @@ class InventoryServiceTest {
     // -------------------------------------------------------
     @Test
     void countLowStock_withMixedItems_shouldCountOnlyLowTracked() {
-        Inventory inv1 = inventory(1L, 10L, true, 2, 5);   // low
-        Inventory inv2 = inventory(2L, 20L, true, 10, 5);  // not low
-        Inventory inv3 = inventory(3L, 30L, false, 1, 5);  // not tracked
-        Inventory inv4 = inventory(4L, 40L, true, 5, 5);   // low (equal)
-        when(inventoryRepository.findAll()).thenReturn(List.of(inv1, inv2, inv3, inv4));
+        when(inventoryRepository.countLowStockItems()).thenReturn(2L);
 
         long count = inventoryService.countLowStock();
 
         assertThat(count).isEqualTo(2);
+    }
+
+    // -------------------------------------------------------
+    //  findByItemNameIgnoreCase: delegates to the indexed query
+    // -------------------------------------------------------
+    @Test
+    void findByItemNameIgnoreCase_shouldDelegateToRepository() {
+        Inventory inv = inventory(1L, 10L, true, 5, 3);
+        when(inventoryRepository.findByMenuItem_NameIgnoreCase("Espresso")).thenReturn(Optional.of(inv));
+
+        assertThat(inventoryService.findByItemNameIgnoreCase("Espresso")).contains(inv);
+    }
+
+    @Test
+    void findByItemNameIgnoreCase_whenMissing_shouldReturnEmpty() {
+        when(inventoryRepository.findByMenuItem_NameIgnoreCase("nope")).thenReturn(Optional.empty());
+
+        assertThat(inventoryService.findByItemNameIgnoreCase("nope")).isEmpty();
     }
 }
