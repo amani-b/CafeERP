@@ -27,9 +27,8 @@ import com.cafeerp.AbstractIntegrationTest;
  *   <li>a scoped admin WITHOUT a permission is rejected server-side even when
  *       hitting the endpoint directly (not just hidden in the UI),</li>
  *   <li>a scoped admin WITH the permission succeeds,</li>
- *   <li>only the super admin can grant {@code AI_CODING_TOOL} /
- *       {@code AI_AGENTIC_ACTIONS}, and a scoped admin can never grant more
- *       than they hold themselves.</li>
+ *   <li>only the super admin can grant {@code AI_AGENTIC_ACTIONS}, and a
+ *       scoped admin can never grant more than they hold themselves.</li>
  * </ul>
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -164,18 +163,16 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void scopedAdmin_cannotGrantAiPermissions() throws Exception {
-        for (Permission aiPermission : new Permission[] {Permission.AI_CODING_TOOL, Permission.AI_AGENTIC_ACTIONS}) {
-            String username = "ai_refused_" + aiPermission.name().toLowerCase();
-            MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
-            mockMvc.perform(post("/users").session(session).with(csrf())
-                            .param("username", username)
-                            .param("role", "ADMIN")
-                            .param("password", "password123")
-                            .param("permissions", aiPermission.name()))
-                    .andExpect(status().isOk())
-                    .andExpect(view().name("users/create"));
-            assertThat(userRepository.findByUsername(username)).isEmpty();
-        }
+        String username = "ai_refused_agentic_actions";
+        MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
+        mockMvc.perform(post("/users").session(session).with(csrf())
+                        .param("username", username)
+                        .param("role", "ADMIN")
+                        .param("password", "password123")
+                        .param("permissions", Permission.AI_AGENTIC_ACTIONS.name()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("users/create"));
+        assertThat(userRepository.findByUsername(username)).isEmpty();
     }
 
     @Test
@@ -186,12 +183,12 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
                         .param("username", username)
                         .param("role", "ADMIN")
                         .param("password", "password123")
-                        .param("permissions", "AI_CODING_TOOL", "AI_AGENTIC_ACTIONS", "INVENTORY"))
+                        .param("permissions", "AI_AGENTIC_ACTIONS", "INVENTORY"))
                 .andExpect(status().is3xxRedirection());
 
         User created = userRepository.findByUsername(username).orElseThrow();
         assertThat(created.getPermissions()).containsExactlyInAnyOrder(
-                Permission.AI_CODING_TOOL, Permission.AI_AGENTIC_ACTIONS, Permission.INVENTORY);
+                Permission.AI_AGENTIC_ACTIONS, Permission.INVENTORY);
     }
 
     @Test

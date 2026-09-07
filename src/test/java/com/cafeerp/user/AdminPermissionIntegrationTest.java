@@ -115,26 +115,26 @@ class AdminPermissionIntegrationTest extends AbstractIntegrationTest {
                         .param("username", "p3_ai_admin")
                         .param("password", "aipass12345")
                         .param("role", "ADMIN")
-                        .param("permissions", "INVENTORY", "AI_AGENTIC_ACTIONS", "AI_CODING_TOOL"))
+                        .param("permissions", "INVENTORY", "AI_AGENTIC_ACTIONS"))
                 .andExpect(status().is3xxRedirection());
 
         User created = userRepository.findByUsername("p3_ai_admin").orElseThrow();
         assertThat(created.getPermissions()).containsExactlyInAnyOrder(
-                Permission.INVENTORY, Permission.AI_AGENTIC_ACTIONS, Permission.AI_CODING_TOOL);
+                Permission.INVENTORY, Permission.AI_AGENTIC_ACTIONS);
     }
 
     @Test
     void scopedAdmin_cannotAssignAiPermissions_evenOnesTheyHold_themselves() throws Exception {
         txTemplate.executeWithoutResult(tx -> findUser(SCOPE_ADMIN)
                 .setPermissions(Set.of(Permission.INVENTORY, Permission.USER_MANAGEMENT,
-                        Permission.AI_CODING_TOOL)));
+                        Permission.AI_AGENTIC_ACTIONS)));
         MockHttpSession session = login(SCOPE_ADMIN, SCOPE_PW);
 
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", "p3_escalation")
                         .param("password", "escalate123")
                         .param("role", "ADMIN")
-                        .param("permissions", "INVENTORY", "AI_CODING_TOOL"))
+                        .param("permissions", "INVENTORY", "AI_AGENTIC_ACTIONS"))
                 .andExpect(status().isOk()); // form re-rendered with error
 
         // Nothing persisted — fail closed
