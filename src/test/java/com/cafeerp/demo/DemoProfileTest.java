@@ -101,9 +101,10 @@ class DemoProfileTest {
         // Admin-tier showcase: menu, inventory and reports are ADMIN-gated in
         // production, so the portfolio visitor uses the demo-admin account.
         MockHttpSession admin = login("demo-admin", DemoSeedData.DEMO_PASSWORD);
-        mockMvc.perform(get("/").session(admin)).andExpect(status().isOk());
-        mockMvc.perform(get("/menu").session(admin)).andExpect(status().isOk());
-        mockMvc.perform(get("/inventory").session(admin)).andExpect(status().isOk());
+        mockMvc.perform(get("/").session(admin)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Public demo sandbox")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Not in demo:")));
+        mockMvc.perform(get("/menu").session(admin)).andExpect(status().isOk());        mockMvc.perform(get("/inventory").session(admin)).andExpect(status().isOk());
         mockMvc.perform(get("/reports").session(admin)).andExpect(status().isOk());
 
         MockHttpSession session = login("demo-staff", DemoSeedData.DEMO_PASSWORD);
