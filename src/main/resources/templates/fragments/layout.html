@@ -55,6 +55,11 @@
 <!-- activePage parameter controls active-state highlighting       -->
 <!-- ============================================================ -->
 <div th:fragment="sidebar(activePage)" class="app-sidebar" sec:authorize="isAuthenticated()">
+    <!-- Public demo notice: only rendered under the demo profile. -->
+    <div th:if="${demoMode}" class="demo-banner" style="margin:.75rem .75rem 0;padding:.6rem .8rem;border-radius:.5rem;background:#fff8e6;border:1px dashed #b98a1d;font-size:.75rem;line-height:1.4;">
+        <strong>Public demo sandbox.</strong>
+        <span>Your changes are private to this visit and reset after about 25 minutes of inactivity.</span>
+    </div>
     <!-- Sidebar header with logo -->
     <div class="sidebar-header">
         <a th:href="@{/}" class="sidebar-logo">
@@ -108,27 +113,27 @@
                     <span>Inventory</span>
                 </a>
             </li>
-            <li sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_USER_MANAGEMENT')" th:classappend="${activePage == 'users'} ? 'active' : ''">
+            <li th:unless="${demoMode}" sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_USER_MANAGEMENT')" th:classappend="${activePage == 'users'} ? 'active' : ''">
                 <a th:href="@{/users}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span>Users</span>
                 </a>
             </li>
-            <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'settings'} ? 'active' : ''">
+            <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'settings'} ? 'active' : ''">
                 <a th:href="@{/settings}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>Settings</span>
                 </a>
             </li>
 
-            <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'active' : ''">
+            <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'active' : ''">
                 <a th:href="@{/admin/assistant}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <span>Assistant Logs</span>
                 </a>
             </li>
 
-            <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-actions'} ? 'active' : ''">
+            <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-actions'} ? 'active' : ''">
                 <a th:href="@{/admin/assistant/actions}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                     <span>AI Action Log</span>
@@ -188,6 +193,11 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
+        <!-- Public demo notice: only rendered under the demo profile. -->
+        <div th:if="${demoMode}" class="demo-banner" style="margin:0 .75rem .5rem;padding:.6rem .8rem;border-radius:.5rem;background:#fff8e6;border:1px dashed #b98a1d;font-size:.75rem;line-height:1.4;">
+            <strong>Public demo sandbox.</strong>
+            <span>Your changes are private to this visit and reset after about 25 minutes of inactivity.</span>
+        </div>
         <nav class="offcanvas-nav">
             <ul class="nav-list">
                 <li th:classappend="${activePage == 'dashboard' || activePage == 'home'} ? 'active' : ''">
@@ -232,27 +242,27 @@
                         <span>Inventory</span>
                     </a>
                 </li>
-                <li sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_USER_MANAGEMENT')" th:classappend="${activePage == 'users'} ? 'active' : ''">
+                <li th:unless="${demoMode}" sec:authorize="hasRole('SUPER_ADMIN') or hasAuthority('PERM_USER_MANAGEMENT')" th:classappend="${activePage == 'users'} ? 'active' : ''">
                     <a th:href="@{/users}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         <span>Users</span>
                     </a>
                 </li>
-                <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'settings'} ? 'active' : ''">
+                <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'settings'} ? 'active' : ''">
                     <a th:href="@{/settings}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         <span>Settings</span>
                     </a>
                 </li>
 
-                <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'active' : ''">
+                <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-admin'} ? 'active' : ''">
                     <a th:href="@{/admin/assistant}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         <span>Assistant Logs</span>
                     </a>
                 </li>
 
-                <li sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-actions'} ? 'active' : ''">
+                <li th:unless="${demoMode}" sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:classappend="${activePage == 'assistant-actions'} ? 'active' : ''">
                     <a th:href="@{/admin/assistant/actions}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                         <span>AI Action Log</span>
