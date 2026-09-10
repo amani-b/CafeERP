@@ -64,6 +64,17 @@ class DemoProfileTest {
     private DataSource dataSource;
 
     @Test
+    void health_isStatelessUnderDemoProfile() throws Exception {
+        // The external pinger hits this anonymously every few minutes: it
+        // must answer 200 without minting sessions or touching demo state.
+        MvcResult result = mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("UP")))
+                .andReturn();
+        assertThat(result.getRequest().getSession(false)).isNull();
+    }
+
+    @Test
     void demoBeans_replaceJpaRepositories() {
         // The injected repository is the session-scoped demo proxy, not JPA.
         CategoryRepository categories =
