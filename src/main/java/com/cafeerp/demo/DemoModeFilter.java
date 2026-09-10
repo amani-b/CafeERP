@@ -63,7 +63,8 @@ public class DemoModeFilter extends OncePerRequestFilter {
                     <h1>Disabled in the public demo</h1>
                     <p>User management, business settings and assistant audit viewers are turned off
                     in this shared showcase — every visitor gets a throwaway sandbox, and these
-                    screens are not part of it.</p>
+                    screens are not part of it. Everything else works: menu, orders, kitchen,
+                    inventory, reports, and the assistant (15 messages per visit).</p>
                     <p><a href="/">Back to the dashboard</a></p>
                     </body></html>""");
             return;
