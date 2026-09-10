@@ -153,9 +153,9 @@ Set these in the PaaS dashboard for the application service:
 | `DB_URL` | `jdbc:postgresql://host:5432/cafeerp?sslmode=require` | The platform-provided JDBC connection string. |
 | `DB_USERNAME` | `cafeerp_user` | Database user. |
 | `DB_PASSWORD` | *(secret)* | Database password. |
-| `GROQ_API_KEY` | *(secret)* | API key for Groq (primary AI model provider). Read from env var by the assistant. |
-| `GEMINI_API_KEY` | *(secret)* | API key for Gemini (secondary AI model provider, used if Groq is rate-limited or errors out). |
-| `OPENROUTER_API_KEY` | *(secret)* | API key for OpenRouter (tertiary AI model provider, used if both Groq and Gemini fail). If all three providers fail, the assistant falls back to deterministic keyword-matching (Tier 2) that answers directly from live cafe data — it never shows a bare error. |
+| `GROQ_API_KEY` | *(secret)* | API key for the primary AI model provider. Read from env var by the assistant. |
+| `GEMINI_API_KEY` | *(secret)* | API key for the secondary AI model provider, used if the primary is rate-limited or errors out. |
+| `OPENROUTER_API_KEY` | *(secret)* | API key for the tertiary AI model provider, used if both the primary and secondary fail. If all three providers fail, the assistant falls back to deterministic keyword-matching (Tier 2) that answers directly from live cafe data — it never shows a bare error. |
 
 The application reads these at startup. They are **never** baked into the
 Docker image.

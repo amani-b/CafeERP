@@ -39,6 +39,12 @@
                     <p class="m-0">You have been logged out.</p>
                 </div>
 
+                <!-- Public demo credentials (rendered only under the demo profile) -->
+                <div class="alert alert-info mb-4" th:if="${demoMode}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <p class="m-0" th:text="${demoAccountsHint}">Demo accounts</p>
+                </div>
+
                 <!-- Login Form -->
                 <form th:action="@{/login}" method="post">
                     <div class="mb-4">

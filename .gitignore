@@ -1,4 +1,3 @@
-```
 # Compiled and build artifacts
 *.class
 *.o
@@ -37,3 +36,6 @@ __pycache__/
 *.pyd
 # CafeERP.zip is a bulky leftover handoff artifact — never commit it.
 CafeERP.zip
+# repomix-output.xml is a full codebase dump — never commit it (it would
+# publish the entire source tree as a single file).
+repomix-output.xml
