@@ -10,6 +10,4 @@ target/
 *.zip
 .DS_Store
 Thumbs.db
-.agents/
-.continue/
 cookies.txt
