@@ -5,7 +5,7 @@ customer orders, kitchen queue, inventory tracking, sales reports, and an AI ass
 with role-based access for staff and administrators.
 
 **Live production:** https://cafeerp.onrender.com
-**Live demo (public sandbox):** <!-- TODO: add the demo Render service URL, e.g. https://cafeerp-demo.onrender.com -->
+**Live demo (public sandbox):** https://cafeerp-demo.onrender.com
 
 > The demo is a throwaway sandbox: every visitor gets their own private, session-scoped copy of a
 > fictional cafe dataset. Nothing you do there touches production data, and your sandbox resets
