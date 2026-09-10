@@ -79,7 +79,9 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <!-- runtime (not test-only): the demo profile boots on a throwaway
+                 H2 in-memory database so it can never reach production data. -->
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>

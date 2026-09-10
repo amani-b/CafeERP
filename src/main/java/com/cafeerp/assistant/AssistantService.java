@@ -12,6 +12,7 @@ import java.util.AbstractMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,14 @@ public class AssistantService {
     private final AssistantActionLogRepository actionLogRepository;
     /** Phase 5 sidebar polish: AI summary titles for conversations. */
     private final AssistantTitleService titleService;
+
+    /**
+     * Demo-mode AI budget hook. Present only under the {@code demo} profile
+     * (a session-scoped per-visitor allowance); {@code null} everywhere else,
+     * so production behavior is completely untouched.
+     */
+    @Autowired(required = false)
+    private com.cafeerp.demo.DemoAssistantQuota demoAssistantQuota;
 
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantConversationRepository conversationRepository,
@@ -88,8 +97,9 @@ public class AssistantService {
      *       canonical patterns where deterministic pattern-matching produces a
      *       clearer, safer answer than a generated one (e.g. exact order ID lookups).
      *       If so, route directly to the deterministic handler — no AI call needed.</li>
-     *   <li>Otherwise: attempt the Groq → Gemini → OpenRouter provider chain for
-     *       genuine natural-language understanding with tool grounding.</li>
+     *   <li>Otherwise: attempt the primary → secondary → tertiary model
+     *       failover chain for genuine natural-language understanding with
+     *       tool grounding.</li>
      *   <li>If every provider fails, fall back to Tier 2 deterministic pattern-matching
      *       as a true fallback.</li>
      *   <li>If Tier 2 also finds no pattern match, return a graceful "unavailable" message
@@ -141,9 +151,14 @@ public class AssistantService {
      * is still in flight.
      */
     public AssistantReply processMessage(User user, String userMessage, Long conversationId,
-                                         AgenticAutonomy autonomy, AssistantTraceListener trace) {
+                                          AgenticAutonomy autonomy, AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
+        AssistantReply capped = tryDemoCap(user, conversation, userMessage, null);
+        if (capped != null) {
+            return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
+                    capped.pendingActions());
+        }
         AssistantReply reply = processMessageInConversation(user, userMessage, conversation, mode,
                 null, trace == null ? AssistantTraceListener.NOOP : trace);
         return new AssistantReply(reply.text(), reply.links(), conversation.getId(), reply.pendingActions());
@@ -171,6 +186,12 @@ public class AssistantService {
                                             AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
+        AssistantReply capped = tryDemoCap(user, conversation, originalMessage,
+                new Regeneration(feedback));
+        if (capped != null) {
+            return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
+                    capped.pendingActions());
+        }
         // The user is replacing the AI's previous answer(s): delete the
         // assistant replies that the original query produced (the query itself
         // STAYS), then generate a fresh one.
@@ -205,6 +226,11 @@ public class AssistantService {
                                         AssistantTraceListener trace) {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
+        AssistantReply capped = tryDemoCap(user, conversation, editedMessage, null);
+        if (capped != null) {
+            return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
+                    capped.pendingActions());
+        }
         deleteOriginalTurn(conversation, originalMessage);
         AssistantReply reply = processMessageInConversation(user, editedMessage, conversation, mode,
                 null, trace == null ? AssistantTraceListener.NOOP : trace);
@@ -673,8 +699,8 @@ public class AssistantService {
         // Deep-copy messages so each provider starts fresh
         List<Map<String, Object>> msgs = deepCopyMessages(messages);
 
-        // Per-provider Amharic booster: the free models behind Groq, Gemini
-        // and OpenRouter do not share the same out-of-the-box fluency, so each
+        // Per-provider Amharic booster: the models behind the failover chain
+        // do not share the same out-of-the-box fluency, so each
         // gets its own few-line reinforcement appended to the system message
         // of ITS copy only. English turns yield an empty booster — the English
         // path (and its latency characteristics: one small string concat) is
@@ -1078,6 +1104,34 @@ public class AssistantService {
             return;
         }
         titleService.maybeGenerateTitleAsync(conversation, userMessage, replyText);
+    }
+
+    /**
+     * Demo-mode AI budget gate (no-op outside the {@code demo} profile, where
+     * {@code demoAssistantQuota} is null). Each visitor session gets a small
+     * number of assistant turns; once spent, further turns get a friendly
+     * cap message instead of a model call — the sandbox data stays fully
+     * usable. Returns {@code null} when the turn may proceed.
+     */
+    private AssistantReply tryDemoCap(User user, AssistantConversation conversation,
+                                      String userMessage, Regeneration regen) {
+        if (demoAssistantQuota == null || demoAssistantQuota.tryConsume()) {
+            return null;
+        }
+        log.info("Demo assistant budget spent for user '{}'", user.getUsername());
+        if (regen == null) {
+            saveMessage(user, AssistantMessageRole.USER, userMessage, conversation);
+            touchConversation(conversation, userMessage);
+        } else {
+            touchConversation(conversation, null);
+        }
+        String text = "You've used all " + com.cafeerp.demo.DemoAssistantQuota.MAX_MESSAGES_PER_SESSION
+                + " assistant messages for this demo visit — the cap keeps the public demo from running up"
+                + " real usage costs. Your sandbox data is untouched: keep browsing the menu, orders,"
+                + " kitchen and reports, or open a fresh session to start over with a new sandbox.";
+        AssistantReply capped = new AssistantReply(text, List.of());
+        saveMessage(user, AssistantMessageRole.ASSISTANT, capped.text(), conversation);
+        return capped;
     }
 
     /**
