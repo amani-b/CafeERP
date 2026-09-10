@@ -9,6 +9,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +20,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.cafeerp.assistant.AssistantService.AssistantReply;
@@ -54,6 +59,16 @@ public class AssistantStreamController {
     private final AssistantService assistantService;
     private final AssistantTitleService titleService;
     private final UserRepository userRepository;
+
+    /**
+     * Demo-mode guard: the demo profile's repositories are session-scoped, and
+     * the streaming workers below run on pooled threads with no HTTP session —
+     * so in demo mode the request's attributes are propagated to the worker
+     * (bound for the turn, always reset after). Null in unit tests (direct
+     * construction), which behave as non-demo.
+     */
+    @Autowired(required = false)
+    private Environment environment;
 
     /**
      * Daemon per-request worker pool: each streaming turn runs on its own
@@ -102,7 +117,7 @@ public class AssistantStreamController {
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
         emitter.onTimeout(emitter::complete);
 
-        streamExecutor.execute(() -> {
+        executeStreamed(capturedDemoAttributes(), () -> {
             AssistantTraceListener trace = (text, state) -> {
                 try {
                     emitter.send(SseEmitter.event().name("step")
@@ -190,7 +205,7 @@ public class AssistantStreamController {
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
         emitter.onTimeout(emitter::complete);
 
-        streamExecutor.execute(() -> {
+        executeStreamed(capturedDemoAttributes(), () -> {
             AssistantTraceListener trace = (text, state) -> {
                 try {
                     emitter.send(SseEmitter.event().name("step")
@@ -224,6 +239,48 @@ public class AssistantStreamController {
         });
 
         return emitter;
+    }
+
+    /**
+     * The current request's attributes, but only under the {@code demo}
+     * profile (null everywhere else, so production workers run exactly as
+     * before). Demo workers need them: the demo repositories are
+     * session-scoped and the pooled stream threads otherwise have no session.
+     */
+    private RequestAttributes capturedDemoAttributes() {
+        if (!isDemoProfile()) {
+            return null;
+        }
+        try {
+            return RequestContextHolder.getRequestAttributes();
+        } catch (IllegalStateException e) {
+            return null;
+        }
+    }
+
+    /** Runs stream work, binding demo request attributes for the turn only. */
+    private void executeStreamed(RequestAttributes captured, Runnable work) {
+        streamExecutor.execute(() -> {
+            boolean bound = false;
+            if (captured != null) {
+                RequestContextHolder.setRequestAttributes(captured);
+                bound = true;
+            }
+            try {
+                work.run();
+            } finally {
+                // Pooled threads are reused — never leak one turn's session
+                // into the next.
+                if (bound) {
+                    RequestContextHolder.resetRequestAttributes();
+                }
+            }
+        });
+    }
+
+    /** True only under the {@code demo} profile (null-safe for unit tests). */
+    private boolean isDemoProfile() {
+        return environment != null && environment.acceptsProfiles(Profiles.of("demo"));
     }
 
     private Long parseConversationId(String raw) {
