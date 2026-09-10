@@ -48,7 +48,7 @@ public class SecurityConfig {
                     "/assistant/chat/stream", "/assistant/actions/*/stream"))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login-error", "/css/**", "/js/**", "/actuator/health",
-                        "/build-version").permitAll()
+                        "/build-version", "/health").permitAll()
                 // NOTE: SUPER_ADMIN is the root tier; ADMIN is the scoped tier.
                 // Admin-tier URL access is additionally narrowed per-module by
                 // @permissions.has(...) checks on the controllers (Phase 3).
