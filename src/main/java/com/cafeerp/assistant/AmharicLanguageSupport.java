@@ -19,11 +19,11 @@ import java.util.regex.Pattern;
  *       code-switched mix. Transliterated Amharic is a first-class input: the
  *       same language in a different keyboard, never a lesser one.</li>
  *   <li><b>Voice</b> ({@link #directiveFor}, {@link #boosterFor}) — the
- *       register/personality brief that makes the model answer like a sharp
- *       bilingual Ethiopian colleague instead of an English reply wearing
- *       Amharic words. Plus a small per-provider booster because Groq, Gemini
- *       and OpenRouter's free models do not have the same out-of-the-box
- *       fluency.</li>
+  *       register/personality brief that makes the model answer like a sharp
+  *       bilingual Ethiopian colleague instead of an English reply wearing
+  *       Amharic words. Plus a small per-provider booster because the models
+  *       behind the failover chain do not have the same out-of-the-box
+  *       fluency.</li>
  * </ol>
  */
 public final class AmharicLanguageSupport {
@@ -316,14 +316,14 @@ public final class AmharicLanguageSupport {
 
     /**
      * Extra few lines tuned per provider, appended AFTER the shared voice
-     * brief. Groq's chat model is the strongest multilingual of the three so
-     * it needs only a light touch; Gemini Flash needs an explicit
-     * don't-explain-don't-romanize guard; OpenRouter's free model is the
-     * weakest, so it gets anchored few-shot pairs plus a short-answer
-     * scaffold. All plain prompt text — free at inference time.
+     * brief. The primary chat model is the strongest multilingual of the three
+     * so it needs only a light touch; the secondary model needs an explicit
+     * don't-explain-don't-romanize guard; the tertiary model is the weakest,
+     * so it gets anchored few-shot pairs plus a short-answer scaffold. All
+     * plain prompt text — free at inference time.
      *
-     * @param providerName the configured provider name (groq/gemini/openrouter…);
-     *                     unknown names get the medium-strength guard.
+     * @param providerName the configured provider name; unknown names get the
+     *                     medium-strength guard.
      */
     public static String boosterFor(String providerName, Script script) {
         if (script == Script.ENGLISH) {

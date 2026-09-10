@@ -1070,6 +1070,32 @@
         }
     });
 
+    // Public-demo assistant budget notice: when the demo banner is present
+    // (demo profile only — inert in production), show the per-visit message
+    // allowance in the chat header subtitle and refresh it whenever the
+    // thread settles, so visitors learn the limit before they hit it.
+    (function demoQuotaNotice() {
+        if (!document.querySelector('.demo-banner')) return;
+        var sub = document.querySelector('.assistant-chat-header-sub');
+        if (!sub) return;
+        function refresh() {
+            fetch('/assistant/demo-quota', { headers: csrfHeaders({}) })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (q) {
+                    if (!q) return;
+                    sub.textContent = q.remaining > 0
+                        ? 'Demo assistant \u00b7 ' + q.remaining + ' of ' + q.limit + ' messages left'
+                        : 'Demo assistant \u00b7 limit reached \u2014 browsing still works';
+                })
+                .catch(function () { /* keep the default subtitle */ });
+        }
+        var origOpenPanel = openPanel;
+        openPanel = function () { origOpenPanel(); refresh(); };
+        var origRefreshHistoryLists = refreshHistoryLists;
+        refreshHistoryLists = function () { origRefreshHistoryLists(); refresh(); };
+        refresh();
+    })();
+
     sendBtn.addEventListener('click', sendMessage);
 
     // Auto-grow the input up to its max-height

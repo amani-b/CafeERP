@@ -20,6 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -140,6 +142,15 @@ public class AssistantTitleService {
     private final AssistantMessageRepository messageRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Demo-mode guard: background title work runs on daemon threads with no
+     * HTTP session, so it can never reach the session-scoped demo stores —
+     * and demo threads keep their derived titles instead. Null in unit tests
+     * (direct construction), which behave as non-demo.
+     */
+    @Autowired(required = false)
+    private Environment environment;
+
     /** Title generations in flight, by conversation id — lets the SSE
      *  stream hold the reply just long enough to deliver the fresh title. */
     private final ConcurrentHashMap<Long, CompletableFuture<Boolean>> pendingTitles =
@@ -235,9 +246,12 @@ public class AssistantTitleService {
      *         the sidebar can update within the same response.
      */
     public CompletableFuture<Boolean> maybeGenerateTitleAsync(AssistantConversation conversation,
-                                                              String userMessage, String replyText) {
+                                                               String userMessage, String replyText) {
         if (conversation == null || conversation.getId() == null
                 || userMessage == null || userMessage.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (isDemoProfile()) {
             return CompletableFuture.completedFuture(false);
         }
         String currentTitle = conversation.getTitle();
@@ -303,10 +317,15 @@ public class AssistantTitleService {
      */
     @Scheduled(fixedDelay = 300_000, initialDelay = 5_000)
     public void scheduledBackfillTitles() {
-        if (!scheduledBackfillEnabled) {
+        if (!scheduledBackfillEnabled || isDemoProfile()) {
             return;
         }
         backfillTitles();
+    }
+
+    /** True only under the {@code demo} profile (null-safe for unit tests). */
+    private boolean isDemoProfile() {
+        return environment != null && environment.acceptsProfiles(Profiles.of("demo"));
     }
 
     /**
