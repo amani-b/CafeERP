@@ -123,6 +123,49 @@ class DemoProfileTest {
     }
 
     @Test
+    void assistant_streamingWorksInDemo() throws Exception {
+        MockHttpSession session = login("demo-staff", DemoSeedData.DEMO_PASSWORD);
+
+        // The widget streams first: the SSE turn must deliver a reply event
+        // even though demo state is session-scoped and the work runs on a
+        // pooled thread.
+        MvcResult started = mockMvc.perform(post("/assistant/chat/stream").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content("{\"message\":\"status of order 7\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request()
+                        .asyncStarted())
+                .andReturn();
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .asyncDispatch(started))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Order #7")));
+    }
+
+    @Test
+    void demoQuota_endpointReflectsUsage() throws Exception {
+        MockHttpSession session = login("demo-staff", DemoSeedData.DEMO_PASSWORD);
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        String before = mockMvc.perform(get("/assistant/demo-quota").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(mapper.readTree(before).get("remaining").asInt())
+                .isEqualTo(DemoAssistantQuota.MAX_MESSAGES_PER_SESSION);
+
+        mockMvc.perform(post("/assistant/chat").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isOk());
+
+        String after = mockMvc.perform(get("/assistant/demo-quota").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(mapper.readTree(after).get("remaining").asInt())
+                .isEqualTo(DemoAssistantQuota.MAX_MESSAGES_PER_SESSION - 1);
+    }
+
+    @Test
     void sessions_getPrivateSandboxes() throws Exception {
         MockHttpSession sessionA = login("demo-staff", DemoSeedData.DEMO_PASSWORD);
 
