@@ -20,6 +20,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -82,9 +84,17 @@ class AssistantStreamControllerTest {
 
         // The real service fires the trace listener per tool call; simulate
         // that contract so the endpoint's SSE wiring is exercised end-to-end.
+        // The worker is parked until the test thread has left the filter
+        // chain: both threads touch the mock response's (non-thread-safe)
+        // headers, so unsynchronized concurrent writes flake intermittently.
+        CountDownLatch workerStarted = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
         when(assistantService.processMessage(eq(staff), eq("status of order 482?"),
                 ArgumentMatchers.<Long>isNull(), any(AgenticAutonomy.class), any()))
                 .thenAnswer(invocation -> {
+                    workerStarted.countDown();
+                    org.junit.jupiter.api.Assertions.assertTrue(
+                            proceed.await(5, TimeUnit.SECONDS), "test did not release the worker");
                     AssistantTraceListener trace = invocation.getArgument(4);
                     trace.onStep("Looking up order #482…", "start");
                     trace.onStep("Done — PENDING, 2 items.", "done");
@@ -102,6 +112,12 @@ class AssistantStreamControllerTest {
                         .content("{\"message\":\"status of order 482?\",\"mode\":\"chat\"}"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
+
+        // The initial perform has returned: the test thread is out of the
+        // filter chain, so the parked worker may now write to the response.
+        org.junit.jupiter.api.Assertions.assertTrue(
+                workerStarted.await(5, TimeUnit.SECONDS), "worker did not start");
+        proceed.countDown();
 
         result.getAsyncResult(5000);
 
@@ -130,9 +146,14 @@ class AssistantStreamControllerTest {
         User staff = new User("staff1", "pass", Role.STAFF);
         when(userRepository.findByUsername("staff1")).thenReturn(java.util.Optional.of(staff));
 
+        CountDownLatch workerStarted = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
         when(assistantService.confirmPendingAction(eq(staff), eq(7L), ArgumentMatchers.<Long>isNull(),
                 any()))
                 .thenAnswer(invocation -> {
+                    workerStarted.countDown();
+                    org.junit.jupiter.api.Assertions.assertTrue(
+                            proceed.await(5, TimeUnit.SECONDS), "test did not release the worker");
                     AssistantTraceListener trace = invocation.getArgument(3);
                     trace.onStep("Running: Change status of order #12 to READY.", "start");
                     trace.onStep("Done — status is now READY.", "done");
@@ -145,6 +166,12 @@ class AssistantStreamControllerTest {
                         .content("{\"verb\":\"confirm\"}"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
+
+        // See stream_shouldEmitStepsThenReply: release the worker only after
+        // the test thread is out of the filter chain.
+        org.junit.jupiter.api.Assertions.assertTrue(
+                workerStarted.await(5, TimeUnit.SECONDS), "worker did not start");
+        proceed.countDown();
 
         result.getAsyncResult(5000);
 
@@ -165,9 +192,16 @@ class AssistantStreamControllerTest {
     void streamAction_whenActionGone_shouldEmitErrorEvent() throws Exception {
         User staff = new User("staff1", "pass", Role.STAFF);
         when(userRepository.findByUsername("staff1")).thenReturn(java.util.Optional.of(staff));
+        CountDownLatch workerStarted = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
         when(assistantService.confirmPendingAction(eq(staff), eq(99L), ArgumentMatchers.<Long>isNull(),
                 any()))
-                .thenThrow(new IllegalArgumentException("Pending action not found"));
+                .thenAnswer(invocation -> {
+                    workerStarted.countDown();
+                    org.junit.jupiter.api.Assertions.assertTrue(
+                            proceed.await(5, TimeUnit.SECONDS), "test did not release the worker");
+                    throw new IllegalArgumentException("Pending action not found");
+                });
 
         MvcResult result = mockMvc.perform(post("/assistant/actions/99/stream")
                         .with(SecurityMockMvcRequestPostProcessors.csrf())
@@ -175,6 +209,12 @@ class AssistantStreamControllerTest {
                         .content("{\"verb\":\"confirm\"}"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
+
+        // See stream_shouldEmitStepsThenReply: release the worker only after
+        // the test thread is out of the filter chain.
+        org.junit.jupiter.api.Assertions.assertTrue(
+                workerStarted.await(5, TimeUnit.SECONDS), "worker did not start");
+        proceed.countDown();
 
         result.getAsyncResult(5000);
 
