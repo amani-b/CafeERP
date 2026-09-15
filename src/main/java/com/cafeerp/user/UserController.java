@@ -28,7 +28,8 @@ import jakarta.validation.Valid;
 @PreAuthorize("@permissions.has('USER_MANAGEMENT')")
 public class UserController {
 
-    private static final int MIN_PASSWORD_LENGTH = 8;
+    /** Minimum password length for newly created accounts (going forward only). */
+    static final int MIN_PASSWORD_LENGTH = 12;
 
     private final UserService userService;
     private final PermissionService permissionService;
