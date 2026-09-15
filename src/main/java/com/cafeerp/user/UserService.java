@@ -13,13 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cafeerp.assistant.AssistantActionLogRepository;
 import com.cafeerp.assistant.AssistantConversationRepository;
+import com.cafeerp.assistant.AssistantDailyUsageRepository;
 import com.cafeerp.assistant.AssistantMessageRepository;
 
 @Service
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
-    private static final int MIN_PASSWORD_LENGTH = 8;
+    /** Minimum password length for change/create — applies going forward only. */
+    static final int MIN_PASSWORD_LENGTH = 12;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,19 +33,23 @@ public class UserService {
     // Phase 4 audit tables also FK cafe_user, so hard delete must purge them.
     private final com.cafeerp.user.UserSessionLogRepository sessionLogRepository;
     private final AssistantActionLogRepository actionLogRepository;
+    // The assistant daily-quota rows FK cafe_user as well (V17).
+    private final AssistantDailyUsageRepository dailyUsageRepository;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        AssistantMessageRepository messageRepository,
                        AssistantConversationRepository conversationRepository,
                        com.cafeerp.user.UserSessionLogRepository sessionLogRepository,
-                       AssistantActionLogRepository actionLogRepository) {
+                       AssistantActionLogRepository actionLogRepository,
+                       AssistantDailyUsageRepository dailyUsageRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.sessionLogRepository = sessionLogRepository;
         this.actionLogRepository = actionLogRepository;
+        this.dailyUsageRepository = dailyUsageRepository;
     }
 
     /**
@@ -66,7 +72,8 @@ public class UserService {
             throw new IllegalArgumentException("Current password is incorrect.");
         }
 
-        // Validate new password length (minimum 8 characters)
+        // Validate new password length (minimum 12 characters; existing hashes
+        // are untouched — this only gates newly chosen passwords)
         if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) {
             throw new IllegalArgumentException(
                     "New password must be at least " + MIN_PASSWORD_LENGTH + " characters long.");
@@ -241,6 +248,7 @@ public class UserService {
         // the AI action log are personal to the account, so they go too.
         sessionLogRepository.deleteByUserId(id);
         actionLogRepository.deleteByUserId(id);
+        dailyUsageRepository.deleteByUserId(id);
 
         // 2. The account itself. No other table references cafe_user.
         userRepository.delete(user);

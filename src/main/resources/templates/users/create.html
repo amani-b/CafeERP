@@ -26,9 +26,9 @@
 
             <div class="mb-4">
                 <label for="password" class="field-label">Password</label>
-                <input type="password" id="password" class="uk-input w-full" th:field="*{password}" placeholder="At least 8 characters"
+                <input type="password" id="password" class="uk-input w-full" th:field="*{password}" placeholder="At least 12 characters"
                        th:classappend="${#fields.hasErrors('password')} ? 'uk-form-danger'">
-                <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">Password must be at least 8 characters long</div>
+                <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">Password must be at least 12 characters long</div>
             </div>
 
             <div class="mb-4">

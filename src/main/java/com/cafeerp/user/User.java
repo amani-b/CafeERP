@@ -1,6 +1,7 @@
 package com.cafeerp.user;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -50,6 +51,16 @@ public class User {
 
     @Column(nullable = false)
     private boolean mustChangePassword = false;
+
+    /**
+     * LOGIN LOCKOUT: when non-null and in the future, authentication rejects
+     * the account with the generic "invalid credentials" error (no oracle
+     * distinguishing locked / unknown / wrong-password). Set by the
+     * login-abuse guard after consecutive failures; cleared on next success.
+     */
+    @JsonIgnore
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 
     /**
      * Granular admin permissions (Phase 3). Only meaningful for ADMIN-tier
@@ -131,6 +142,20 @@ public class User {
 
     public void setMustChangePassword(boolean mustChangePassword) {
         this.mustChangePassword = mustChangePassword;
+    }
+
+    public LocalDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void setLockedUntil(LocalDateTime lockedUntil) {
+        this.lockedUntil = lockedUntil;
+    }
+
+    /** True while the login-abuse guard is holding the account locked. */
+    @JsonIgnore
+    public boolean isLocked() {
+        return lockedUntil != null && lockedUntil.isAfter(LocalDateTime.now(ZoneOffset.UTC));
     }
 
     public LocalDateTime getDeletedAt() {
