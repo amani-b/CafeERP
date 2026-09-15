@@ -115,13 +115,6 @@ public class LoginAttemptService {
         userFailures.clear();
     }
 
-    /**
-     * Test hook: last LOGIN_FAILED audit row, so tests can assert auditing
-     * without querying the repository layer (which is session-scoped in demo).
-     */
-    public java.util.concurrent.atomic.AtomicReference<String> lastAuditedUsernameForTests =
-            new java.util.concurrent.atomic.AtomicReference<>();
-
     /** Bad-password attempt: counts, locks at the threshold, audits. */
     @EventListener
     public void onBadCredentials(AuthenticationFailureBadCredentialsEvent event) {
@@ -190,8 +183,6 @@ public class LoginAttemptService {
     }
 
     private void auditFailedLogin(com.cafeerp.user.User user) {
-        // Visible to tests regardless of which repo profile persisted the row.
-        lastAuditedUsernameForTests.set(user.getUsername());
         try {
             UserSessionLogRepository repo = sessionLogs.getIfAvailable();
             if (repo == null) {
