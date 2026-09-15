@@ -126,13 +126,19 @@ user; the kitchen queue is restricted to kitchen/admin roles.
 
 Any authenticated user can change their own password at `/account/password`.
 
-### Seeded admin user (dev/prod only)
+### Seeded accounts (dev/prod only)
 
-The migration `V2__add_users.sql` seeds one admin user. See that file for the hashed credentials.
-
-Migration `V4__add_must_change_password.sql` sets a `mustChangePassword` flag on that seeded admin, so on first login they are redirected to `/account/password` before any other page is accessible. Once the password is changed, the flag is cleared and normal access resumes.
-
-**⚠️ Security:** The migration includes a placeholder BCrypt hash. You **must** change this password immediately after first login. Do not rely on the seeded value in production.
+Fresh databases seed `admin`, `staff` and `kitchen` logins via the early
+migrations. Migration `V17__credential_hardening.sql` locks those seed
+password hashes to an unguessable placeholder (the old public `changeme123`
+stops working everywhere), and `BootstrapPasswordRunner` issues each
+still-locked account a cryptographically random one-time password at first
+boot, logged once at WARN (`INITIAL ADMIN PASSWORD (shown once, then never
+again): …`). Copy it from the deploy logs, log in, and change it immediately
+— `must_change_password` is enforced, so the first login redirects to
+`/account/password` before anything else is reachable. New passwords must be
+at least 12 characters. Already-changed deployments are untouched (no-op boot,
+nothing logged).
 
 ### Demo accounts (demo profile only)
 

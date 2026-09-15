@@ -69,7 +69,7 @@ public class AgenticTaskOrderIntegrationTest extends AbstractIntegrationTest {
         if (userRepository.findByUsername(AGENTIC).isEmpty()) {
             User user = new User();
             user.setUsername(AGENTIC);
-            user.setPassword("password123");
+            user.setPassword("password1234");
             user.setRole(Role.ADMIN);
             userService.createUser(user);
         }
@@ -102,7 +102,7 @@ public class AgenticTaskOrderIntegrationTest extends AbstractIntegrationTest {
                         ? new ChatCompletionClient.Result(200, BATCHED_REVERSED_TOOL_CALLS)
                         : new ChatCompletionClient.Result(200, FINAL_REPLY));
 
-        MockHttpSession session = login(AGENTIC, "password123");
+        MockHttpSession session = login(AGENTIC, "password1234");
         MvcResult chatResult = mockMvc.perform(post("/assistant/chat").session(session)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

@@ -63,6 +63,21 @@ class DemoProfileTest {
     @Autowired
     private DataSource dataSource;
 
+    /**
+     * Login-abuse guard state is keyed by client IP, and every MockMvc request
+     * in a test JVM shares one (127.0.0.1). Reset the counters per test so the
+     * rolling 10-logins-per-minute throttle never trips across tests.
+     */
+    @Autowired(required = false)
+    private com.cafeerp.common.LoginAttemptService loginAttemptService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void resetLoginAbuseGuard() {
+        if (loginAttemptService != null) {
+            loginAttemptService.resetForTests();
+        }
+    }
+
     @Test
     void health_isStatelessUnderDemoProfile() throws Exception {
         // The external pinger hits this anonymously every few minutes: it

@@ -191,16 +191,32 @@ and Spring Boot validates the JPA entities match the schema.
 - [ ] If the endpoint returns `{"status":"DOWN"}`, check the `details` field
       (visible to ADMIN role) or look at the application logs.
 
-### Step 6: Login as admin and complete forced password change
+### Step 6: Copy the bootstrap password and complete forced password change
 
+- [ ] Watch the deploy logs for the one-time line (logged once at WARN):
+      `INITIAL ADMIN PASSWORD (shown once, then never again): …`
+      — copy it immediately (also logged for `STAFF`/`KITCHEN` on a fresh
+      database). Existing deployments whose passwords were already changed
+      log nothing here.
 - [ ] Navigate to `https://<your-app-url>/login`.
-- [ ] Log in as **admin** with the seeded password **changeme123**.
+- [ ] Log in as **admin** with the bootstrap password (there is no default
+      password anymore — migration `V17` locked the old public `changeme123`).
 - [ ] You will be immediately redirected to `/account/password` (the
       `PasswordChangeFilter` enforces this for users with
       `must_change_password = true`).
-- [ ] Set a new strong password and submit.
+- [ ] Set a new strong password (minimum 12 characters) and submit.
 - [ ] Confirm you are redirected to the home page and can navigate to
       `/categories`, `/menu`, `/orders`, `/inventory` without errors.
+- [ ] Treat the first hour of deploy-log history as sensitive until the
+      bootstrap password has been changed.
+
+Login abuse protection: `POST /login` is throttled per client IP (10/minute
+→ HTTP 429, `Retry-After: 60`), and 5 consecutive bad passwords lock the
+account for 15 minutes. Locked accounts fail with the same generic
+"Invalid username or password" as wrong passwords. Failed logins are audited
+as `LOGIN_FAILED` rows in `user_session_log`. Login sessions expire after
+30 minutes of inactivity and each user holds a single concurrent session
+(a second sign-in expires the first, which lands on `/login?expired`).
 
 ### Step 7: Smoke-test the main flows
 
@@ -336,7 +352,7 @@ tag on Docker Hub:
 | Production config | `src/main/resources/application-prod.properties` |
 | Flyway migrations | `src/main/resources/db/migration/V*.sql` |
 | CI pipeline | `.github/workflows/ci.yml` |
-| Seeded admin credentials | See V2 migration — username `admin`, password `changeme123` |
+| Seeded bootstrap credentials | Migration `V17` locks the seeded `admin`/`staff`/`kitchen` logins; `BootstrapPasswordRunner` issues one-time random passwords at first boot (logged once at WARN) — there is no default password |
 | Forced password change | Implemented by `PasswordChangeFilter` and V4 migration |
 
 > **IMPORTANT:** Never commit `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, or any

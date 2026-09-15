@@ -42,7 +42,7 @@ class UserDeleteIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/users").session(admin).with(csrf())
                         .param("username", username)
                         .param("role", "STAFF")
-                        .param("password", "password123"))
+                        .param("password", "password1234"))
                 .andExpect(status().is3xxRedirection());
         return userRepository.findByUsername(username).orElseThrow().getId();
     }
@@ -58,7 +58,7 @@ class UserDeleteIntegrationTest extends AbstractIntegrationTest {
 
         // The login is blocked — deactivated user is treated as unknown.
         mockMvc.perform(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders
-                        .formLogin().user("softdeletee").password("password123"))
+                        .formLogin().user("softdeletee").password("password1234"))
                 .andExpect(org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers
                         .unauthenticated());
 
@@ -86,7 +86,7 @@ class UserDeleteIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/users/activate/" + id).session(admin).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         mockMvc.perform(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders
-                        .formLogin().user("softdeletee").password("password123"))
+                        .formLogin().user("softdeletee").password("password1234"))
                 .andExpect(org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers
                         .authenticated().withUsername("softdeletee"));
     }
@@ -121,7 +121,7 @@ class UserDeleteIntegrationTest extends AbstractIntegrationTest {
 
         // The doomed user chats with the assistant (real request) so chat
         // rows reference them when the hard delete runs.
-        MockHttpSession doomed = login("harddeleteme", "password123");
+        MockHttpSession doomed = login("harddeleteme", "password1234");
         chat(doomed, "status of order #999999");
         assertThat(messageCountFor(id)).isGreaterThan(0);
         long conversationId = firstConversationIdFor(id);
@@ -147,6 +147,9 @@ class UserDeleteIntegrationTest extends AbstractIntegrationTest {
                 "SELECT COUNT(*) FROM assistant_message WHERE user_id = ?", Long.class, id)).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM assistant_conversation WHERE id = ?", Long.class, conversationId)).isZero();
+        // The assistant daily-quota rows also FK cafe_user (V17) and go with it.
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM assistant_daily_usage WHERE user_id = ?", Long.class, id)).isZero();
         // Business records are untouched.
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM cafe_order WHERE id = ?", Long.class, orderId)).isEqualTo(1);

@@ -68,15 +68,53 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected DataSource dataSource;
 
+    @Autowired
+    protected org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Autowired(required = false)
+    protected com.cafeerp.common.LoginAttemptService loginAttemptService;
+
     /**
      * The seed users ship with must_change_password = TRUE, which makes the
      * PasswordChangeFilter redirect every request to /account/password. Clear
      * the flag once so tests exercise normal signed-in behaviour.
+     * <p>
+     * Also re-seeds the known {@code changeme123} test logins: migration V17
+     * locks the seeded accounts on real deployments, but the full test suite
+     * logs in as admin/staff hundreds of times — re-hash them here so every
+     * integration test runs against the real form-login stack unchanged.
      */
     @BeforeAll
     void clearForcedPasswordFlagsAndNeutralizeAiKeys() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.update("UPDATE cafe_user SET must_change_password = FALSE");
+        String hash = passwordEncoder.encode(PLACEHOLDER_PASSWORD);
+        jdbc.update("UPDATE cafe_user SET password = ?, locked_until = NULL WHERE username IN ('admin','staff','kitchen')",
+                hash);
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void resetLoginAbuseGuard() {
+        // Each test starts with a clean throttling/lockout slate (the guard
+        // is in-memory per IP / per username).
+        if (loginAttemptService != null) {
+            loginAttemptService.resetForTests();
+        }
+        // Belt and braces: a lockout row persisted by a previous test must
+        // never leak into the next one — nor may assistant quota spend, which
+        // shares the same H2 across the whole suite (e.g. a capped staff row
+        // would otherwise poison unrelated assistant tests).
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        try {
+            jdbc.update("UPDATE cafe_user SET locked_until = NULL WHERE locked_until IS NOT NULL");
+        } catch (Exception ignored) {
+            // Demo-profile tests run without the prod schema — nothing to clear.
+        }
+        try {
+            jdbc.update("DELETE FROM assistant_daily_usage");
+        } catch (Exception ignored) {
+            // Table exists only after V17 / when the prod schema is present.
+        }
     }
 
     /** Log in through the real form-login filter and return the session. */
