@@ -22,10 +22,14 @@ import org.springframework.stereotype.Component;
  * deployer to copy from the platform logs. {@code must_change_password} stays
  * enforced, so the first login still forces an immediate change.
  * <p>
- * Idempotent: accounts that already have a real password (no locked placeholder)
- * are untouched, so existing deployments that already changed their passwords
- * see no-op boots and no secrets in logs. Runs in every non-demo profile
- * (prod <i>and</i> dev share the same migrations and seeded logins).
+ * Idempotent once the migration has run: accounts holding a real password (no
+ * locked placeholder) are untouched, so from the second boot onwards the runner
+ * is a no-op and logs nothing. Mind the one-time exception — {@code V17} itself
+ * re-locks the three seeded accounts unconditionally the first time it is
+ * applied, so a deployment upgrading to this version does get fresh one-time
+ * passwords logged even if its admin password had already been customised.
+ * Runs in every non-demo profile (prod <i>and</i> dev share the same migrations
+ * and seeded logins).
  */
 @Component
 @Profile("!demo")
