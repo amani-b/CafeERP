@@ -31,13 +31,22 @@ public class SecurityConfig {
      * absent there. In production it is always present.
      */
     private final org.springframework.beans.factory.ObjectProvider<AuditLogoutSuccessHandler> auditLogoutSuccessHandler;
+    /**
+     * Optional for the same slice-test reason: {@code @WebMvcTest} slices do
+     * not scan {@code @Service} beans, so the login-abuse guard may be absent
+     * there. In the full application it is always present and the filter is
+     * active.
+     */
+    private final org.springframework.beans.factory.ObjectProvider<LoginAttemptService> loginAttemptService;
 
     public SecurityConfig(CustomUserDetailsService userDetailsService,
                           UserRepository userRepository,
-                          org.springframework.beans.factory.ObjectProvider<AuditLogoutSuccessHandler> auditLogoutSuccessHandler) {
+                          org.springframework.beans.factory.ObjectProvider<AuditLogoutSuccessHandler> auditLogoutSuccessHandler,
+                          org.springframework.beans.factory.ObjectProvider<LoginAttemptService> loginAttemptService) {
         this.userDetailsService = userDetailsService;
         this.userRepository = userRepository;
         this.auditLogoutSuccessHandler = auditLogoutSuccessHandler;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @Bean
@@ -86,7 +95,14 @@ public class SecurityConfig {
                 .permitAll()
             )
             .userDetailsService(userDetailsService)
-            .addFilterAfter(passwordChangeFilter(), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(loginAttemptFilter(), UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(passwordChangeFilter(), UsernamePasswordAuthenticationFilter.class)
+            .sessionManagement(session -> session
+                // One live session per user: a second sign-in expires the
+                // first (which then lands on /login?expired). Kills
+                // credential-sharing and stale staff-room sessions.
+                .maximumSessions(1)
+                .expiredUrl("/login?expired")); // end sessionManagement — logout configured above
 
         return http.build();
     }
@@ -99,6 +115,27 @@ public class SecurityConfig {
     @Bean
     public PasswordChangeFilter passwordChangeFilter() {
         return new PasswordChangeFilter(userRepository);
+    }
+
+    /**
+     * Login-abuse front gate (see {@link LoginAttemptFilter}): per-IP rolling
+     * 429 throttling plus locked-account screening. No-op passthrough in
+     * {@code @WebMvcTest} slices where {@link LoginAttemptService} is absent.
+     */
+    @Bean
+    public LoginAttemptFilter loginAttemptFilter() {
+        return new LoginAttemptFilter(loginAttemptService.getIfAvailable(() -> null));
+    }
+
+    /**
+     * Required for {@code maximumSessions(1)} above: publishes session
+     * lifecycle events so expired/logged-out sessions are removed from the
+     * registry. Without it, stale entries linger and a returning user can be
+     * wrongly rejected as "already signed in".
+     */
+    @Bean
+    public org.springframework.security.web.session.HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new org.springframework.security.web.session.HttpSessionEventPublisher();
     }
 
     /**

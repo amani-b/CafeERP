@@ -45,9 +45,9 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
     void seedScopedAdmins() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         for (String[] u : new String[][] {
-                {SCOPED_INVENTORY, "password123"},
-                {SCOPED_NO_PERMS, "password123"},
-                {SCOPED_USER_MGMT, "password123"}}) {
+                {SCOPED_INVENTORY, "password1234"},
+                {SCOPED_NO_PERMS, "password1234"},
+                {SCOPED_USER_MGMT, "password1234"}}) {
             if (userRepository.findByUsername(u[0]).isEmpty()) {
                 User user = new User();
                 user.setUsername(u[0]);
@@ -77,21 +77,21 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void scopedAdminWithoutInventoryPermission_isRejectedOnInventoryEndpoint() throws Exception {
-        MockHttpSession session = login(SCOPED_NO_PERMS, "password123");
+        MockHttpSession session = login(SCOPED_NO_PERMS, "password1234");
         mockMvc.perform(get("/inventory").session(session))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void scopedAdminWithoutUserManagementPermission_isRejectedOnUsersEndpoint() throws Exception {
-        MockHttpSession session = login(SCOPED_INVENTORY, "password123");
+        MockHttpSession session = login(SCOPED_INVENTORY, "password1234");
         mockMvc.perform(get("/users").session(session))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void scopedAdminWithoutMenuPermission_isRejectedOnMenuEndpoint() throws Exception {
-        MockHttpSession session = login(SCOPED_NO_PERMS, "password123");
+        MockHttpSession session = login(SCOPED_NO_PERMS, "password1234");
         mockMvc.perform(get("/menu").session(session))
                 .andExpect(status().isForbidden());
     }
@@ -102,14 +102,14 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void scopedAdminWithInventoryPermission_canAccessInventory() throws Exception {
-        MockHttpSession session = login(SCOPED_INVENTORY, "password123");
+        MockHttpSession session = login(SCOPED_INVENTORY, "password1234");
         mockMvc.perform(get("/inventory").session(session))
                 .andExpect(status().isOk());
     }
 
     @Test
     void scopedAdminWithUserManagementPermission_canAccessUsers() throws Exception {
-        MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
+        MockHttpSession session = login(SCOPED_USER_MGMT, "password1234");
         mockMvc.perform(get("/users").session(session))
                 .andExpect(status().isOk());
     }
@@ -132,13 +132,13 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void scopedAdmin_cannotGrantPermissionTheyDoNotHold() throws Exception {
-        MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
+        MockHttpSession session = login(SCOPED_USER_MGMT, "password1234");
         // Holds USER_MANAGEMENT only - REPORT must be refused even though the
         // form was POSTed directly with that checkbox value.
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", "victim1")
                         .param("role", "ADMIN")
-                        .param("password", "password123")
+                        .param("password", "password1234")
                         .param("permissions", "REPORT"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("users/create"));
@@ -148,12 +148,12 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void scopedAdmin_canGrantPermissionTheyHold() throws Exception {
-        MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
+        MockHttpSession session = login(SCOPED_USER_MGMT, "password1234");
         // Holds USER_MANAGEMENT - granting it to a new admin is allowed.
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", "scoped_ok")
                         .param("role", "ADMIN")
-                        .param("password", "password123")
+                        .param("password", "password1234")
                         .param("permissions", "USER_MANAGEMENT"))
                 .andExpect(status().is3xxRedirection());
 
@@ -164,11 +164,11 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
     @Test
     void scopedAdmin_cannotGrantAiPermissions() throws Exception {
         String username = "ai_refused_agentic_actions";
-        MockHttpSession session = login(SCOPED_USER_MGMT, "password123");
+        MockHttpSession session = login(SCOPED_USER_MGMT, "password1234");
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", username)
                         .param("role", "ADMIN")
-                        .param("password", "password123")
+                        .param("password", "password1234")
                         .param("permissions", Permission.AI_AGENTIC_ACTIONS.name()))
                 .andExpect(status().isOk())
                 .andExpect(view().name("users/create"));
@@ -182,7 +182,7 @@ class PermissionEnforcementIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", username)
                         .param("role", "ADMIN")
-                        .param("password", "password123")
+                        .param("password", "password1234")
                         .param("permissions", "AI_AGENTIC_ACTIONS", "INVENTORY"))
                 .andExpect(status().is3xxRedirection());
 

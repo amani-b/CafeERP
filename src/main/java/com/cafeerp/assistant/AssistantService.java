@@ -51,6 +51,14 @@ public class AssistantService {
     @Autowired(required = false)
     private com.cafeerp.demo.DemoAssistantQuota demoAssistantQuota;
 
+    /**
+     * Production cost control. Present in every profile except {@code demo}
+     * (which enforces its own per-session budget instead); {@code null} in
+     * unit tests that construct the service directly, where the cap is off.
+     */
+    @Autowired(required = false)
+    private AssistantDailyQuota dailyQuota;
+
     public AssistantService(AssistantMessageRepository messageRepository,
                             AssistantConversationRepository conversationRepository,
                             AssistantToolRegistry toolRegistry,
@@ -155,6 +163,9 @@ public class AssistantService {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
         AssistantReply capped = tryDemoCap(user, conversation, userMessage, null);
+        if (capped == null) {
+            capped = tryDailyCap(user, conversation, userMessage, null);
+        }
         if (capped != null) {
             return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
                     capped.pendingActions());
@@ -188,6 +199,10 @@ public class AssistantService {
         AssistantConversation conversation = resolveConversation(user, conversationId);
         AssistantReply capped = tryDemoCap(user, conversation, originalMessage,
                 new Regeneration(feedback));
+        if (capped == null) {
+            capped = tryDailyCap(user, conversation, originalMessage,
+                    new Regeneration(feedback));
+        }
         if (capped != null) {
             return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
                     capped.pendingActions());
@@ -227,6 +242,9 @@ public class AssistantService {
         AgenticAutonomy mode = autonomy == null ? AgenticAutonomy.ALWAYS_CONFIRM : autonomy;
         AssistantConversation conversation = resolveConversation(user, conversationId);
         AssistantReply capped = tryDemoCap(user, conversation, editedMessage, null);
+        if (capped == null) {
+            capped = tryDailyCap(user, conversation, editedMessage, null);
+        }
         if (capped != null) {
             return new AssistantReply(capped.text(), capped.links(), conversation.getId(),
                     capped.pendingActions());
@@ -1129,6 +1147,38 @@ public class AssistantService {
                 + " assistant messages for this demo visit — the cap keeps the public demo from running up"
                 + " real usage costs. Your sandbox data is untouched: keep browsing the menu, orders,"
                 + " kitchen and reports, or open a fresh session to start over with a new sandbox.";
+        AssistantReply capped = new AssistantReply(text, List.of());
+        saveMessage(user, AssistantMessageRole.ASSISTANT, capped.text(), conversation);
+        return capped;
+    }
+
+    /**
+     * Production cost control: durable per-user daily turn budget (see
+     * {@link AssistantDailyQuota}). Skipped when the quota bean is absent
+     * (unit tests) or when the demo profile is active (the demo enforces its
+     * own per-session budget via {@code tryDemoCap} instead). Returns
+     * {@code null} when the turn may proceed.
+     */
+    private AssistantReply tryDailyCap(User user, AssistantConversation conversation,
+                                       String userMessage, Regeneration regen) {
+        if (dailyQuota == null || demoAssistantQuota != null || user.getId() == null) {
+            return null;
+        }
+        if (dailyQuota.tryConsume(user.getId())) {
+            return null;
+        }
+        log.info("Assistant daily budget spent for user '{}'", user.getUsername());
+        if (regen == null) {
+            saveMessage(user, AssistantMessageRole.USER, userMessage, conversation);
+            touchConversation(conversation, userMessage);
+        } else {
+            touchConversation(conversation, null);
+        }
+        String text = "You've used today's assistant allowance ("
+                + dailyQuota.getMaxTurnsPerDay()
+                + " turns per user per day) — the cap keeps shared AI usage costs predictable. "
+                + "Your data is untouched: browse the menu, orders, kitchen and reports as usual, "
+                + "or come back tomorrow for more assistant turns.";
         AssistantReply capped = new AssistantReply(text, List.of());
         saveMessage(user, AssistantMessageRole.ASSISTANT, capped.text(), conversation);
         return capped;

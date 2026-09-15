@@ -113,7 +113,7 @@ class AdminPermissionIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/users").session(session).with(csrf())
                         .param("username", "p3_ai_admin")
-                        .param("password", "aipass12345")
+                        .param("password", "aipass123456")
                         .param("role", "ADMIN")
                         .param("permissions", "INVENTORY", "AI_AGENTIC_ACTIONS"))
                 .andExpect(status().is3xxRedirection());

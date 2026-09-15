@@ -17,17 +17,19 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 /**
- * One LOGIN or LOGOUT event for a user (Phase 4). Written by the Spring
- * Security login event listener and the custom logout success handler; read
- * by the assistant's agentic session-history tools. {@code username} is
- * snapshotted so history stays readable even if the account is later
- * soft-deleted.
+ * One LOGIN, LOGOUT or LOGIN_FAILED event for a user (Phase 4 + credential
+ * hardening). Written by the Spring Security login event listener, the custom
+ * logout success handler, and the login-abuse guard; read by the assistant's
+ * agentic session-history tools. {@code username} is snapshotted so history
+ * stays readable even if the account is later soft-deleted. Failed attempts
+ * against unknown usernames are NOT stored (no account to attach them to) —
+ * they still count toward IP throttling and per-user lockout in memory.
  */
 @Entity
 @Table(name = "user_session_log")
 public class UserSessionLog {
 
-    public enum Event { LOGIN, LOGOUT }
+    public enum Event { LOGIN, LOGOUT, LOGIN_FAILED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

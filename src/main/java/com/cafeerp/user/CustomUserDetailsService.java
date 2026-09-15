@@ -25,6 +25,12 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsernameAndDeletedAtIsNull(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
+        // Locked-out accounts fail exactly like unknown usernames: no oracle
+        // for distinguishing "locked" from "wrong password" from "no user".
+        if (user.isLocked()) {
+            throw new UsernameNotFoundException("User not found: " + username);
+        }
+
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
