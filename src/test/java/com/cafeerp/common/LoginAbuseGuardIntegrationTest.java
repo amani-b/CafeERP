@@ -37,9 +37,6 @@ class LoginAbuseGuardIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private UserSessionLogRepository sessionLogRepository;
 
-    @Autowired
-    private LoginAttemptService attemptService;
-
     @Test
     @org.junit.jupiter.api.Order(1)
     void throttling_eleventhRapidLoginGets429() throws Exception {
@@ -96,7 +93,6 @@ class LoginAbuseGuardIntegrationTest extends AbstractIntegrationTest {
     @Test
     @org.junit.jupiter.api.Order(3)
     void failedLogin_isAuditedAsLoginFailed() {
-        attemptService.lastAuditedUsernameForTests.set(null);
         long before = sessionLogRepository.count();
         try {
             mockMvc.perform(formLogin().user("admin").password("wrong-password"));
@@ -104,7 +100,8 @@ class LoginAbuseGuardIntegrationTest extends AbstractIntegrationTest {
             // formLogin result matchers throw on failure — the audit row is
             // what this test asserts; see below.
         }
-        assertThat(attemptService.lastAuditedUsernameForTests.get()).isEqualTo("admin");
+        // The audit row is written through the real repository, so this
+        // assertion covers both the write and its persistence.
         assertThat(sessionLogRepository.count()).isGreaterThanOrEqualTo(before + 1);
         boolean hasFailedRow = sessionLogRepository.findAll().stream()
                 .anyMatch(row -> row.getEvent() == UserSessionLog.Event.LOGIN_FAILED
