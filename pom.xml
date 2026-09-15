@@ -16,6 +16,22 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>Cafe ERP</name>
     <description>Simple web-based ERP prototype for a small cafe</description>
+    <url>https://cafeerp-demo.onrender.com</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <connection>scm:git:https://github.com/amani-b/CafeERP.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/amani-b/CafeERP.git</developerConnection>
+        <url>https://github.com/amani-b/CafeERP</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <properties>
         <java.version>17</java.version>

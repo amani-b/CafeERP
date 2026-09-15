@@ -293,3 +293,6 @@ For the public demo service setup, see [docs/DEMO_DEPLOYMENT.md](docs/DEMO_DEPLO
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Third-party components (Franken UI, marked, DOMPurify) and their licenses are
+listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
