@@ -137,8 +137,13 @@ boot, logged once at WARN (`INITIAL ADMIN PASSWORD (shown once, then never
 again): …`). Copy it from the deploy logs, log in, and change it immediately
 — `must_change_password` is enforced, so the first login redirects to
 `/account/password` before anything else is reachable. New passwords must be
-at least 12 characters. Already-changed deployments are untouched (no-op boot,
-nothing logged).
+at least 12 characters.
+
+`V17` re-locks those three accounts unconditionally the first time it runs, so
+on the first boot of this version a previously customised password for
+`admin`/`staff`/`kitchen` is replaced too — read the one-time passwords from the
+logs and set new ones. From the second boot onwards the runner is inert (nothing
+logged, nothing changed), and no other account is ever touched.
 
 ### Demo accounts (demo profile only)
 
@@ -172,9 +177,13 @@ assistant messages per visitor session).
 1. Ensure PostgreSQL is running and the database exists (e.g. `cafe_erp`).
 2. Set environment variables if needed (see [Configuration](#configuration)).
 3. Run `mvn spring-boot:run` (default `dev` profile).
-4. Open `http://localhost:8080/`. If no admin user has been modified yet, use the credentials
-   from `V2__add_users.sql` to log in on the first run — you will be forced to change the
-   password before accessing any other page.
+4. Open `http://localhost:8080/`. On the first boot after migration `V17`, the console prints
+   one-time random passwords for the seeded accounts (`INITIAL ADMIN PASSWORD (shown once,
+   then never again): …`, and the same for `STAFF`/`KITCHEN`) — copy one and log in with it.
+   There is no default password: `V17` locked the old public `changeme123`. You will be forced
+   to change it before accessing any other page.
+   (If your database already ran `V17` and you changed the password then, nothing is logged —
+   just use the password you set.)
 
 ## Deployment
 
@@ -219,6 +228,11 @@ src/main/resources/db/migration/
 | `V1__baseline_schema.sql` | Core tables: `category`, `menu_item`, `cafe_order`, `cafe_order_item` |
 | `V2__add_users.sql` | Adds `cafe_user` table and seeds the initial admin user |
 | `V3__add_inventory.sql` | Adds `inventory` table (per-item stock with opt-in tracking) and initialises a row for every existing menu item |
+| `V17__credential_hardening.sql` | Locks the seeded logins to an unguessable placeholder (one-time bootstrap passwords), adds `cafe_user.locked_until` for account lockout, and creates `assistant_daily_usage` for the per-user daily assistant quota |
+
+The table lists the structurally notable migrations only; `V4`–`V16` add
+incremental features (forced password change, session audit, assistant threads,
+soft delete, order status) and `V17` is the credential/quota hardening release.
 
 **Important:** Hibernate `ddl-auto` is set to `validate`, not `update`. Never enable DDL generation in production — all schema changes must go through new Flyway migrations.
 

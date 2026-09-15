@@ -182,6 +182,15 @@ and Spring Boot validates the JPA entities match the schema.
       for the specific error (e.g., a migration script has a syntax error for
       the target Postgres version).
 
+> **Never edit an applied migration.** Flyway stores a checksum for every
+> `V*.sql` it has already run, so changing one of those files makes validation
+> fail and the application refuses to start (recovering needs a `flyway repair`,
+> which is riskier than shipping the fix forward). Corrections always go into a
+> new `V*` migration. For the same reason, any future migration that resets
+> credentials must guard on the **exact previous value** — e.g.
+> `AND password = '<old BCrypt hash>'` — not just on the username, otherwise it
+> will overwrite a password an operator has already changed.
+
 ### Step 5: Verify the health endpoint
 
 - [ ] Hit `https://<your-app-url>/actuator/health` — expect:
@@ -195,9 +204,12 @@ and Spring Boot validates the JPA entities match the schema.
 
 - [ ] Watch the deploy logs for the one-time line (logged once at WARN):
       `INITIAL ADMIN PASSWORD (shown once, then never again): …`
-      — copy it immediately (also logged for `STAFF`/`KITCHEN` on a fresh
-      database). Existing deployments whose passwords were already changed
-      log nothing here.
+      — copy it immediately (also logged for `STAFF`/`KITCHEN`). This is a
+      **one-time reset**: `V17` re-locks all three seeded accounts
+      unconditionally the first time it runs, so on the first boot of this
+      version even a previously customised admin password is replaced. From the
+      second boot onwards the runner is inert and logs nothing — if this line
+      appears, the seeded passwords for that database are now the ones in it.
 - [ ] Navigate to `https://<your-app-url>/login`.
 - [ ] Log in as **admin** with the bootstrap password (there is no default
       password anymore — migration `V17` locked the old public `changeme123`).
